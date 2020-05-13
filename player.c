@@ -36,11 +36,13 @@ int main(int argc, char *argv[]){
     init_character(&local_pac, PACMAN, local_id, atoi(argv[3]), atoi(argv[4]), atoi(argv[5]));
     init_character(&local_monster, MONSTER, local_id, atoi(argv[3]), atoi(argv[4]), atoi(argv[5]));
     printf("local id %d\n", local_pac.id);
+    send(sock_fd, local_pac.color, (sizeof(int) * 3), 0); //sends the color to server
 
     recv(sock_fd, local_pac.pos, (sizeof(int) * 2), 0);
     recv(sock_fd, local_monster.pos, (sizeof(int) * 2), 0);
     printf("random positions to send: %d %d\n", local_pac.pos[0], local_pac.pos[1]);
     printf("random positions to send: %d %d\n", local_monster.pos[0], local_monster.pos[1]);
+    
 
 
     create_board_window(dimensions[0], dimensions[1]);
@@ -71,6 +73,7 @@ int main(int argc, char *argv[]){
             }
         }
     }
+    close_board_windows();
     return(0);
 }
 

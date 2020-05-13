@@ -30,11 +30,12 @@ void push_update(char_data update, char_data previous);
 //server specific functions
 
 //function that opens and reads the board.txt witht the information about the dimensions and bricks
-void *read_file(void *arg);
+void read_file();
 //inializes sockets and connects to the client  
 void *connect_client(void *arg);  
 //receives updates from client, analyses it and pushes it to the SDL queue
 void *client(void *arg);
+int valid_movement(char_data update, char_data character[MAX_CLIENT]);
 
 
 

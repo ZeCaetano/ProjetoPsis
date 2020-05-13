@@ -19,7 +19,6 @@ Uint32 Event_Update;
 
 int dimensions[2];   //dimensions of the board
 char **board;        //matrix with positions occupied by pacmans, monsters, fruits, bricks
-pthread_t file_thread;
 int client_sockets[MAX_CLIENT];     //socket for every client
 char_data all_pac[MAX_CLIENT];
 char_data all_monster[MAX_CLIENT];
@@ -36,7 +35,7 @@ int main(){
         client_sockets[i] = DISCONNECT;
     }    
 
-    pthread_create(&file_thread, NULL, read_file, NULL);
+    read_file();
     pthread_create(&connect_thread, NULL, connect_client, NULL);
 
     for(int i = 0; i < MAX_CLIENT; i++){
@@ -44,15 +43,50 @@ int main(){
         init_character(&all_monster[i], MONSTER, i, 0, 0, 0);
     }
 
-    pthread_join(connect_thread, NULL);    
-
+   // pthread_join(connect_thread, NULL);    
     create_board_window(dimensions[0], dimensions[1]);
 
     while(!done){
         if(SDL_WaitEvent(&event)){
-
+            if(event.type == SDL_QUIT){
+                done = SDL_TRUE;
+            }
+            if(event.type == Event_Update){
+                char_data *data = event.user.data1;
+                char_data *previous = event.user.data2;
+                int id = data->id;
+                if(data->type == DISCONNECT){
+                    clear_place(all_pac[id].pos[0], all_pac[id].pos[1]);
+                    clear_place(all_monster[id].pos[0], all_monster[id].pos[1]);                    
+                }           
+                else{     
+                    if(data->type == 0){ //pacman   
+                        clear_place(previous->pos[0], previous->pos[1]);                 
+                        paint_pacman(all_pac[id].pos[0], all_pac[id].pos[1], all_pac[id].color[0], all_pac[id].color[1], all_pac[id].color[2]);                    
+                        /*for(int i = 0; i < MAX_CLIENT; i++){
+                            if(client_sockets[i].client_id != DISCONNECT){  //to send to just the conected players
+                                send(client_sockets[i].sock_fd, &all_pac[id], sizeof(coord), 0);
+                            }                                               
+                        }  */               
+                    }
+                    else if(data->type == 1){
+                        clear_place(previous->pos[0], previous->pos[1]);
+                        printf("%d %d\n",all_monster[id].pos[0], all_monster[id].pos[1]);
+                        paint_monster(all_monster[id].pos[0], all_monster[id].pos[1], all_monster[id].color[0], all_monster[id].color[1], all_monster[id].color[2]);
+                       /* for(int i = 0; i < MAX_CLIENT; i++){
+                            if(client_sockets[i].client_id != DISCONNECT){
+                                send(client_sockets[i].sock_fd, &all_monster[id], sizeof(coord), 0);
+                            }                                               
+                        }*/
+                    } 
+                }
+        
+                free(data);   
+                free(previous);                 
+            }
         }
     }
+    close_board_windows();
 
 
     for(int i = 0; i < dimensions[1]; i++){
@@ -63,7 +97,7 @@ int main(){
 }
 
 
-void *read_file(void *arg){
+void read_file(){
     FILE *fp = NULL;
     fp = fopen("board.txt", "r");
     char c = '\0';
@@ -86,7 +120,6 @@ void *read_file(void *arg){
         }        
     }
     fclose(fp);
-    pthread_exit(NULL);
 }
 
 void *connect_client(void *arg){
@@ -96,7 +129,6 @@ void *connect_client(void *arg){
     pthread_t thread_id;
     struct sockaddr_in server_addr;
     struct sockaddr_in client_addr[MAX_CLIENT];
-
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(PORT);
@@ -121,7 +153,6 @@ void *connect_client(void *arg){
         perror("socket");
         exit(-1);
     }
-    pthread_join(file_thread, NULL);       //if for some reason the file is taking long, it will until it's finished
     printf("Ready to accept connections\n");    
     while(1){
         client_sockets[client_id] = accept(server_socket_fd, (struct sockaddr *)&client_addr[client_id], &len_client_addr);
@@ -131,9 +162,10 @@ void *connect_client(void *arg){
         }
         printf("Connection made with client\n");
         printf("sending id%d \n", client_id);
+        int id = client_id;
         send(client_sockets[client_id], &client_id, sizeof(int), 0);                
         send(client_sockets[client_id], dimensions, (sizeof(int) * 2), 0);        
-        pthread_create(&thread_id, NULL, client, (void *)&client_sockets[client_id]);
+        pthread_create(&thread_id, NULL, client, (void *)&id);
         client_id ++;
     }
     pthread_exit(NULL);
@@ -141,29 +173,79 @@ void *connect_client(void *arg){
 
 
 void *client(void *arg){
-    int *sock_fd = (int*)arg;
+    int *id = (int*)arg;
+    int color[3];
     char_data update;
     char_data previous;
     printf("New client thread created\n");
     int rand_pos[2];
 
+    recv(client_sockets[*id], color, (sizeof(int) * 3), 0);
+    
+    init_character(&all_pac[*id], PACMAN, *id, color[0], color[1], color[2]);
+    init_character(&all_monster[*id], MONSTER, *id, color[0], color[1], color[2]);
+    init_character(&previous, 0, 0, 0, 0, 0);
     for(int i = 0; i < 2; i++){
         rand_pos[0] = rand() % dimensions[0];
         rand_pos[1] = rand() % dimensions[1];             //sends random starting positions
         printf("random positions to send: %d %d\n", rand_pos[0], rand_pos[1]);
-        send(*sock_fd, rand_pos, (sizeof(int) * 2), 0);
+        send(client_sockets[*id], rand_pos, (sizeof(int) * 2), 0);
+        if(i == 0){
+            all_pac[*id].pos[0] = rand_pos[0];
+            all_pac[*id].pos[1] = rand_pos[1];  
+            push_update(all_pac[*id], previous);
+        }
+        else{
+            all_monster[*id].pos[0] = rand_pos[0];
+            all_monster[*id].pos[1] = rand_pos[1];
+            push_update(all_monster[*id], previous);
+        }
+        
+        
     }
     
     while(1){      
-        if(recv(*sock_fd, &update, sizeof(char_data), 0) == 0){  
+
+        if(recv(client_sockets[*id], &update, sizeof(char_data), 0) == 0){  
             printf("Client disconnected \n");
-          //  disconnect_player(update.client_id);
-          //  update.type = DISCONNECT;
-          //  push_update(update, previous_pos);
+            //disconnect_player(update.client_id);
+          /*  update.type = DISCONNECT;
+            push_update(update, previous_pos);*/
             break;
         }        
-        push_update(update, previous);
-        printf("x%d y%d \tid %d type %d\n", update.pos[0], update.pos[1], update.id, update.type);
+        
+        if(update.type == PACMAN){
+            if(valid_movement(update, all_pac)){
+                previous = all_pac[update.id];
+                all_pac[update.id] = update;
+                push_update(all_pac[update.id], previous);    
+            }
+            
+        }
+        else if(update.type == MONSTER){
+            if(valid_movement(update, all_monster)){
+                printf("valid movement\n");
+                previous = all_monster[update.id];
+                all_monster[update.id] = update;
+                push_update(all_monster[update.id], previous);
+            }
+        }
+        
+       printf("x%d y%d \tid %d type %d\n", update.pos[0], update.pos[1], update.id, update.type);
     }
     pthread_exit(NULL);
+}
+
+
+int valid_movement(char_data update, char_data character[MAX_CLIENT]){
+    int ret = 0;
+    if(update.pos[0] != character[update.id].pos[0] || update.pos[1] != character[update.id].pos[1]){  //if it moved
+        if((update.pos[0] == character[update.id].pos[0] + 1 && update.pos[1] == character[update.id].pos[1])  
+        || (update.pos[0] == character[update.id].pos[0] - 1 && update.pos[1] == character[update.id].pos[1]) 
+        || (update.pos[1] == character[update.id].pos[1] + 1 && update.pos[0] == character[update.id].pos[0])
+        || (update.pos[1] == character[update.id].pos[1] - 1 && update.pos[0] == character[update.id].pos[0])){
+            ret = 1;
+            }
+    }
+    return ret;
 }
