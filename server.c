@@ -8,21 +8,52 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <string.h>
+#include "time.h"
 
 #include "UI_library.h"
 #include "functions.h"
+
+
+Uint32 Event_Update;
+
 
 int dimensions[2];   //dimensions of the board
 char **board;        //matrix with positions occupied by pacmans, monsters, fruits, bricks
 pthread_t file_thread;
 int client_sockets[MAX_CLIENT];     //socket for every client
+char_data all_pac[MAX_CLIENT];
+char_data all_monster[MAX_CLIENT];
+
+
 
 int main(){
     pthread_t connect_thread;
+    srand(time(NULL));
+    int done = 0;
+    SDL_Event event;
+
+    for(int i = 0; i < MAX_CLIENT; i++){
+        client_sockets[i] = DISCONNECT;
+    }    
 
     pthread_create(&file_thread, NULL, read_file, NULL);
     pthread_create(&connect_thread, NULL, connect_client, NULL);
+
+    for(int i = 0; i < MAX_CLIENT; i++){
+        init_character(&all_pac[i], PACMAN, i, 0, 0, 0);
+        init_character(&all_monster[i], MONSTER, i, 0, 0, 0);
+    }
+
     pthread_join(connect_thread, NULL);    
+
+    create_board_window(dimensions[0], dimensions[1]);
+
+    while(!done){
+        if(SDL_WaitEvent(&event)){
+
+        }
+    }
+
 
     for(int i = 0; i < dimensions[1]; i++){
         free(board[i]);
@@ -57,19 +88,6 @@ void *read_file(void *arg){
     fclose(fp);
     pthread_exit(NULL);
 }
-
-
-void *checked_malloc(size_t size){
-    void *ptr;
-    ptr = malloc (size);
-    if(ptr == NULL){
-        printf("Malloc error\n");
-        exit(0);
-    }
-    return ptr;
-
-}
-
 
 void *connect_client(void *arg){
     int err = 0;
@@ -112,11 +130,40 @@ void *connect_client(void *arg){
             exit(-1);
         }
         printf("Connection made with client\n");
+        printf("sending id%d \n", client_id);
         send(client_sockets[client_id], &client_id, sizeof(int), 0);                
         send(client_sockets[client_id], dimensions, (sizeof(int) * 2), 0);        
-       // pthread_create(&thread_id, NULL, client_thread, (void *)&sockets[client_id]);
+        pthread_create(&thread_id, NULL, client, (void *)&client_sockets[client_id]);
         client_id ++;
     }
     pthread_exit(NULL);
 }
 
+
+void *client(void *arg){
+    int *sock_fd = (int*)arg;
+    char_data update;
+    char_data previous;
+    printf("New client thread created\n");
+    int rand_pos[2];
+
+    for(int i = 0; i < 2; i++){
+        rand_pos[0] = rand() % dimensions[0];
+        rand_pos[1] = rand() % dimensions[1];             //sends random starting positions
+        printf("random positions to send: %d %d\n", rand_pos[0], rand_pos[1]);
+        send(*sock_fd, rand_pos, (sizeof(int) * 2), 0);
+    }
+    
+    while(1){      
+        if(recv(*sock_fd, &update, sizeof(char_data), 0) == 0){  
+            printf("Client disconnected \n");
+          //  disconnect_player(update.client_id);
+          //  update.type = DISCONNECT;
+          //  push_update(update, previous_pos);
+            break;
+        }        
+        push_update(update, previous);
+        printf("x%d y%d \tid %d type %d\n", update.pos[0], update.pos[1], update.id, update.type);
+    }
+    pthread_exit(NULL);
+}

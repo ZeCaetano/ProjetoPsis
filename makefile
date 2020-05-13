@@ -9,19 +9,23 @@ ALLFLAGS = -Wall -lSDL2 -lSDL2_image -lpthread
 
 #other C files to linkage
 SDL = UI_library
-
+GLOBAL = functions
 all: clean player server
-#player: player
-#server: server
 
-#clean
 SERVER = server
 $(SERVER): $(SERVER).c
-	$(CC) -g -o $(SERVER) $(SERVER).c $(SDL).c $(ALLFLAGS)
+	$(CC) -g -o $(SERVER) $(SERVER).c $(GLOBAL).c $(SDL).c $(ALLFLAGS)
 
 PLAYER = player
 $(PLAYER): $(PLAYER).c
-	$(CC) -g -o $(PLAYER) $(PLAYER).c $(SDL).c $(ALLFLAGS)
+	$(CC) -g -o $(PLAYER) $(PLAYER).c $(GLOBAL).c $(SDL).c $(ALLFLAGS)
 
 clean:
-	rm $(SERVER) $(PLAYER) 
+	rm $(SERVER) $(PLAYER)
+
+ADDRS = 127.0.0.1
+PORT = 55555
+init:
+	./server
+play:
+	./player $(ADDRS) $(PORT) 255 0 0 
