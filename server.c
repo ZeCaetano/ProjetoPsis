@@ -19,7 +19,7 @@ Uint32 Event_Update;
 
 int dimensions[2];   //dimensions of the board
 char **board;        //matrix with positions occupied by pacmans, monsters, fruits, bricks
-int client_sockets[MAX_CLIENT];     //socket for every client
+int client_sockets[MAX_CLIENT][2];     //socket for every client; [0] for socket, [1] for client it corresponds
 char_data all_pac[MAX_CLIENT];
 char_data all_monster[MAX_CLIENT];
 
@@ -32,7 +32,7 @@ int main(){
     SDL_Event event;
 
     for(int i = 0; i < MAX_CLIENT; i++){
-        client_sockets[i] = DISCONNECT;
+        client_sockets[i][1] = DISCONNECT;
     }    
 
     read_file();
@@ -155,17 +155,17 @@ void *connect_client(void *arg){
     }
     printf("Ready to accept connections\n");    
     while(1){
-        client_sockets[client_id] = accept(server_socket_fd, (struct sockaddr *)&client_addr[client_id], &len_client_addr);
-        if(client_sockets[client_id] == -1){
+        client_sockets[client_id][0] = accept(server_socket_fd, (struct sockaddr *)&client_addr[client_id], &len_client_addr);
+        if(client_sockets[client_id][0] == -1){
             perror("accept");
             exit(-1);
         }
         printf("Connection made with client\n");
         printf("sending id%d \n", client_id);
-        int id = client_id;
-        send(client_sockets[client_id], &client_id, sizeof(int), 0);                
-        send(client_sockets[client_id], dimensions, (sizeof(int) * 2), 0);        
-        pthread_create(&thread_id, NULL, client, (void *)&id);
+        client_sockets[client_id][1] = client_id;
+        send(client_sockets[client_id][0], &client_id, sizeof(int), 0);                
+        send(client_sockets[client_id][0], dimensions, (sizeof(int) * 2), 0);        
+        pthread_create(&thread_id, NULL, client, (void *)client_sockets[client_id]);
         client_id ++;
     }
     pthread_exit(NULL);
@@ -173,40 +173,41 @@ void *connect_client(void *arg){
 
 
 void *client(void *arg){
-    int *id = (int*)arg;
+    int *sock = (int*)arg;
     int color[3];
     char_data update;
     char_data previous;
     printf("New client thread created\n");
     int rand_pos[2];
 
-    recv(client_sockets[*id], color, (sizeof(int) * 3), 0);
-    
-    init_character(&all_pac[*id], PACMAN, *id, color[0], color[1], color[2]);
-    init_character(&all_monster[*id], MONSTER, *id, color[0], color[1], color[2]);
+   
+    recv(sock[0], color, (sizeof(int) * 3), 0);
+    printf("received color\n");
+ 
+    init_character(&all_pac[sock[1]], PACMAN, sock[1], color[0], color[1], color[2]);
+    init_character(&all_monster[sock[1]], MONSTER, sock[1], color[0], color[1], color[2]);
     init_character(&previous, 0, 0, 0, 0, 0);
+
     for(int i = 0; i < 2; i++){
         rand_pos[0] = rand() % dimensions[0];
         rand_pos[1] = rand() % dimensions[1];             //sends random starting positions
         printf("random positions to send: %d %d\n", rand_pos[0], rand_pos[1]);
-        send(client_sockets[*id], rand_pos, (sizeof(int) * 2), 0);
+        send(sock[0], rand_pos, (sizeof(int) * 2), 0);
         if(i == 0){
-            all_pac[*id].pos[0] = rand_pos[0];
-            all_pac[*id].pos[1] = rand_pos[1];  
-            push_update(all_pac[*id], previous);
+            all_pac[sock[1]].pos[0] = rand_pos[0];
+            all_pac[sock[1]].pos[1] = rand_pos[1];  
+            push_update(all_pac[sock[1]], previous);
         }
         else{
-            all_monster[*id].pos[0] = rand_pos[0];
-            all_monster[*id].pos[1] = rand_pos[1];
-            push_update(all_monster[*id], previous);
-        }
-        
-        
+            all_monster[sock[1]].pos[0] = rand_pos[0];
+            all_monster[sock[1]].pos[1] = rand_pos[1];
+            push_update(all_monster[sock[1]], previous);
+        }                
     }
     
     while(1){      
-
-        if(recv(client_sockets[*id], &update, sizeof(char_data), 0) == 0){  
+        printf("about to receive from player %d\n", sock[1]);
+        if(recv(sock[0], &update, sizeof(char_data), 0) == 0){  
             printf("Client disconnected \n");
             //disconnect_player(update.client_id);
           /*  update.type = DISCONNECT;

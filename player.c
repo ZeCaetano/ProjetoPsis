@@ -54,6 +54,7 @@ int main(int argc, char *argv[]){
             }
             if(event.type == SDL_MOUSEMOTION){
                 get_board_place(event.motion.x, event.motion.y, &local_pac.pos[0], &local_pac.pos[1]);
+                printf("sending mouse\n");
                 send(sock_fd, &local_pac, sizeof(char_data), 0);
             }
             if(event.type == SDL_KEYDOWN){
@@ -69,6 +70,7 @@ int main(int argc, char *argv[]){
                 else if(event.key.keysym.sym == SDLK_DOWN){
                     local_monster.pos[1] = local_monster.pos[1] + 1;                    
                 }
+                printf("sending keyboard\n");
                 send(sock_fd, &local_monster, sizeof(char_data), 0);
             }
         }
