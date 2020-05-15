@@ -12,12 +12,19 @@
 #include "UI_library.h"
 #include "functions.h"
 
+Uint32 Event_Update;
+
+
+char_data all_pac[MAX_CLIENT];
+char_data all_monster[MAX_CLIENT];
+int local_id = 0;
+int dimensions[2];
+char **board;
 
 
 int main(int argc, char *argv[]){
-    int sock_fd;
-    int local_id = 3;
-    int dimensions[2];
+    int sock_fd;    
+   
     int done = 0;
     char_data local_pac;
     char_data local_monster;
@@ -30,31 +37,29 @@ int main(int argc, char *argv[]){
     }
 
     connect_server(argv, &sock_fd);
-    recv(sock_fd, &local_id, sizeof(int), 0);
-    recv(sock_fd, dimensions, (sizeof(int) * 2), 0);
-
-    init_character(&local_pac, PACMAN, local_id, atoi(argv[3]), atoi(argv[4]), atoi(argv[5]));
-    init_character(&local_monster, MONSTER, local_id, atoi(argv[3]), atoi(argv[4]), atoi(argv[5]));
-    printf("local id %d\n", local_pac.id);
-    send(sock_fd, local_pac.color, (sizeof(int) * 3), 0); //sends the color to server
-
-    recv(sock_fd, local_pac.pos, (sizeof(int) * 2), 0);
-    recv(sock_fd, local_monster.pos, (sizeof(int) * 2), 0);
-    printf("random positions to send: %d %d\n", local_pac.pos[0], local_pac.pos[1]);
-    printf("random positions to send: %d %d\n", local_monster.pos[0], local_monster.pos[1]);
-    
-
+    server_data(sock_fd, argv);
+    local_pac = all_pac[local_id];
+    local_monster = all_monster[local_id];
+        
+    pthread_create(&thread_id, NULL, update_thread, (void *)&sock_fd);
 
     create_board_window(dimensions[0], dimensions[1]);
+    initial_paint();
 
     while(!done){
         if(SDL_WaitEvent(&event)){
             if(event.type == SDL_QUIT){
                 done = SDL_TRUE;
             }
+            if(event.type == Event_Update){
+                char_data *data = event.user.data1;
+                char_data *previous = event.user.data2;
+                paint_update(data, previous, all_pac, all_monster);
+                free(previous);
+                free(data);
+            }
             if(event.type == SDL_MOUSEMOTION){
                 get_board_place(event.motion.x, event.motion.y, &local_pac.pos[0], &local_pac.pos[1]);
-                printf("sending mouse\n");
                 send(sock_fd, &local_pac, sizeof(char_data), 0);
             }
             if(event.type == SDL_KEYDOWN){
@@ -70,7 +75,6 @@ int main(int argc, char *argv[]){
                 else if(event.key.keysym.sym == SDLK_DOWN){
                     local_monster.pos[1] = local_monster.pos[1] + 1;                    
                 }
-                printf("sending keyboard\n");
                 send(sock_fd, &local_monster, sizeof(char_data), 0);
             }
         }
@@ -107,3 +111,69 @@ void connect_server(char *argv[], int *sock_fd){
     }    
     printf("connected to server\n");    
 }
+
+void *update_thread(void *arg){
+    int *sock_fd = arg;    
+    char_data update;    
+    char_data previous;
+    
+    while(1){
+        if(recv(*sock_fd, &update, sizeof(char_data), 0) == 0){
+            //server closed
+        }
+        if(update.type == PACMAN){
+            previous = all_pac[update.id];
+            all_pac[update.id] = update;
+            push_update(all_pac[update.id], previous);
+        }
+        else if(update.type ==  MONSTER){
+            previous = all_monster[update.id];
+            all_monster[update.id] = update;
+            push_update(all_monster[update.id], previous);
+        }
+        else if(update.type == DISCONNECT){
+            all_pac[update.id] = update;
+            push_update(update, previous);
+        }         
+    }
+}   
+
+void server_data(int sock_fd, char *argv[]){
+    int color[3];
+    color[0] = atoi(argv[3]);
+    color[1] = atoi(argv[4]);
+    color[2] = atoi(argv[5]);
+    recv(sock_fd, &local_id, sizeof(int), 0);
+    recv(sock_fd, dimensions, (sizeof(int) * 2), 0);
+    send(sock_fd, color, (sizeof(int) * 3), 0);                  //sends the color to server
+    printf("dimensions: %d %d\n", dimensions[0], dimensions[1]);
+    board = checked_malloc(sizeof(char*) * dimensions[1]);             //rows
+    for(int i = 0; i < dimensions[1]; i++){
+        board[i] = checked_malloc(sizeof(char) * dimensions[0]);      //columns
+        recv(sock_fd, board[i], (sizeof(char)*dimensions[0]), 0);
+    }    
+
+    printf("local id %d\n", local_id);
+
+    recv(sock_fd, all_pac, (sizeof(char_data) * MAX_CLIENT), 0);
+    recv(sock_fd, all_monster, (sizeof(char_data) * MAX_CLIENT), 0);
+}
+
+void initial_paint(){
+    for(int i = 0; i < dimensions[1]; i++){
+        for(int j = 0; j < dimensions[0]; j++){
+            if(board[i][j] == 'B'){
+                paint_brick(j, i);
+            }
+        }
+    }
+    for(int i = 0; i < MAX_CLIENT; i++){
+        if(all_pac[i].id != DISCONNECT){
+            paint_pacman(all_pac[i].pos[0],all_pac[i].pos[1], all_pac[i].color[0], all_pac[i].color[1], all_pac[i].color[2]);
+            paint_monster(all_monster[i].pos[0],all_monster[i].pos[1], all_monster[i].color[0], all_monster[i].color[1], all_monster[i].color[2]);
+        }
+    }
+}
+
+
+//just receives board with kinda half the data

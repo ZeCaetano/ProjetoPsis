@@ -1,6 +1,7 @@
 //generic functions
 
 #include "functions.h"
+#include "UI_library.h"
 
 Uint32 Event_Update;
 
@@ -47,4 +48,27 @@ void push_update(char_data update, char_data previous){
     new_event.user.data1 = event_data[0];
     new_event.user.data2 = event_data[1];
     SDL_PushEvent(&new_event);
+}
+
+void paint_update(char_data *data, char_data *previous, char_data all_pac[MAX_CLIENT], char_data all_monster[MAX_CLIENT]){
+    int id = data->id;
+    if(data->type == DISCONNECT){
+        clear_place(all_pac[id].pos[0], all_pac[id].pos[1]);
+        clear_place(all_monster[id].pos[0], all_monster[id].pos[1]);                    
+    }           
+    else{     
+        if(data->type == PACMAN){ //pacman   
+            clear_place(previous->pos[0], previous->pos[1]);                 
+            paint_pacman(all_pac[id].pos[0], all_pac[id].pos[1], all_pac[id].color[0], all_pac[id].color[1], all_pac[id].color[2]);                    
+                                
+        }
+        else if(data->type == MONSTER){
+            clear_place(previous->pos[0], previous->pos[1]);
+            paint_monster(all_monster[id].pos[0], all_monster[id].pos[1], all_monster[id].color[0], all_monster[id].color[1], all_monster[id].color[2]);
+        }
+        else if(data->type == DISCONNECT) {
+            clear_place(all_pac[id].pos[0], all_pac[id].pos[1]);
+            clear_place(all_monster[id].pos[0], all_monster[id].pos[1]);
+        }
+    }
 }

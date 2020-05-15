@@ -17,8 +17,7 @@ typedef struct char_data{  //character data
 } char_data;
 
 
-//general functions
-
+/*_______________________________________General Functions______________________________________________*/
 
 //malloc with the if condition to check if it succeeded
 void *checked_malloc(size_t size);
@@ -26,8 +25,11 @@ void *checked_malloc(size_t size);
 void init_character(char_data *character, int type, int id, int r, int g, int b);
 //pushes the updated move to the sdl queue
 void push_update(char_data update, char_data previous);
+//cleares the old position and paints in the new position
+void paint_update(char_data *data, char_data *previous, char_data all_pac[MAX_CLIENT], char_data all_monster[MAX_CLIENT]);
 
-//server specific functions
+
+/*__________________________________Server Specific Functions____________________________________________*/
 
 //function that opens and reads the board.txt witht the information about the dimensions and bricks
 void read_file();
@@ -35,11 +37,23 @@ void read_file();
 void *connect_client(void *arg);  
 //receives updates from client, analyses it and pushes it to the SDL queue
 void *client(void *arg);
+//checks if the new position the player wants to go is different than the position the character was
+//and if the new position is one of the four adjacent possible positions
 int valid_movement(char_data update, char_data character[MAX_CLIENT]);
+//sends the new update to every connectec player
+void send_update(char_data update);
+//sets variables to a disconnect state and sends this information to all other players
+void disconnect_player(int id);
 
 
 
-//player specific funtions
+/*___________________________________Player Specific Funtions_______________________________________________*/
 
 //connects to the server
 void connect_server(char *argv[], int *sock_fd);
+//receives the updated movement any player and pushes it to the SDL queue
+void *update_thread(void *arg);
+//recvs and sends to server initial data needed
+void server_data(int sock_fd, char *argv[]);
+//paints the bricks and the players already playing
+void initial_paint();

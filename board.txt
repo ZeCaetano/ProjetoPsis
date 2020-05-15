@@ -1,16 +1,26 @@
-15 15
-     B         
-               
-               
-               
-         B     
-               
-               
-  B            
-         B    B
-               
-      B        
-               
-               
-               
-  B       B    
+20 25
+B                   
+B B B   B           
+B  B                
+B B       B   B     
+BBB  B        B     
+B B B               
+B                   
+B B      B          
+B    B              
+B                   
+B B     B           
+B B                 
+B                   
+B   B               
+B B                 
+B         B       B 
+B                   
+B                   
+B B                 
+B                   
+B                   
+B                   
+B  B                
+B                   
+B  B                

@@ -39,8 +39,8 @@ int main(){
     pthread_create(&connect_thread, NULL, connect_client, NULL);
 
     for(int i = 0; i < MAX_CLIENT; i++){
-        init_character(&all_pac[i], PACMAN, i, 0, 0, 0);
-        init_character(&all_monster[i], MONSTER, i, 0, 0, 0);
+        init_character(&all_pac[i], PACMAN, DISCONNECT, 0, 0, 0);
+        init_character(&all_monster[i], MONSTER, DISCONNECT, 0, 0, 0);
     }
 
    // pthread_join(connect_thread, NULL);    
@@ -54,35 +54,9 @@ int main(){
             if(event.type == Event_Update){
                 char_data *data = event.user.data1;
                 char_data *previous = event.user.data2;
-                int id = data->id;
-                if(data->type == DISCONNECT){
-                    clear_place(all_pac[id].pos[0], all_pac[id].pos[1]);
-                    clear_place(all_monster[id].pos[0], all_monster[id].pos[1]);                    
-                }           
-                else{     
-                    if(data->type == 0){ //pacman   
-                        clear_place(previous->pos[0], previous->pos[1]);                 
-                        paint_pacman(all_pac[id].pos[0], all_pac[id].pos[1], all_pac[id].color[0], all_pac[id].color[1], all_pac[id].color[2]);                    
-                        /*for(int i = 0; i < MAX_CLIENT; i++){
-                            if(client_sockets[i].client_id != DISCONNECT){  //to send to just the conected players
-                                send(client_sockets[i].sock_fd, &all_pac[id], sizeof(coord), 0);
-                            }                                               
-                        }  */               
-                    }
-                    else if(data->type == 1){
-                        clear_place(previous->pos[0], previous->pos[1]);
-                        printf("%d %d\n",all_monster[id].pos[0], all_monster[id].pos[1]);
-                        paint_monster(all_monster[id].pos[0], all_monster[id].pos[1], all_monster[id].color[0], all_monster[id].color[1], all_monster[id].color[2]);
-                       /* for(int i = 0; i < MAX_CLIENT; i++){
-                            if(client_sockets[i].client_id != DISCONNECT){
-                                send(client_sockets[i].sock_fd, &all_monster[id], sizeof(coord), 0);
-                            }                                               
-                        }*/
-                    } 
-                }
-        
-                free(data);   
+                paint_update(data, previous, all_pac, all_monster);                        
                 free(previous);                 
+                free(data);   
             }
         }
     }
@@ -119,6 +93,7 @@ void read_file(){
             j++;
         }        
     }
+    
     fclose(fp);
 }
 
@@ -153,7 +128,8 @@ void *connect_client(void *arg){
         perror("socket");
         exit(-1);
     }
-    printf("Ready to accept connections\n");    
+    printf("Ready to accept connections\n");
+
     while(1){
         client_sockets[client_id][0] = accept(server_socket_fd, (struct sockaddr *)&client_addr[client_id], &len_client_addr);
         if(client_sockets[client_id][0] == -1){
@@ -163,8 +139,7 @@ void *connect_client(void *arg){
         printf("Connection made with client\n");
         printf("sending id%d \n", client_id);
         client_sockets[client_id][1] = client_id;
-        send(client_sockets[client_id][0], &client_id, sizeof(int), 0);                
-        send(client_sockets[client_id][0], dimensions, (sizeof(int) * 2), 0);        
+                
         pthread_create(&thread_id, NULL, client, (void *)client_sockets[client_id]);
         client_id ++;
     }
@@ -180,59 +155,70 @@ void *client(void *arg){
     printf("New client thread created\n");
     int rand_pos[2];
 
-   
+    send(sock[0], &sock[1], sizeof(int), 0);                
+    send(sock[0], dimensions, (sizeof(int) * 2), 0);    
     recv(sock[0], color, (sizeof(int) * 3), 0);
-    printf("received color\n");
- 
+   
     init_character(&all_pac[sock[1]], PACMAN, sock[1], color[0], color[1], color[2]);
     init_character(&all_monster[sock[1]], MONSTER, sock[1], color[0], color[1], color[2]);
     init_character(&previous, 0, 0, 0, 0, 0);
+    for(int i = 0; i < dimensions[1]; i++){
+        send(sock[0], board[i], (sizeof(char)*dimensions[0]), 0);
+        for(int j = 0; j < dimensions[0]; j++){
+            printf("%c", board[i][j]);
+        }
+        printf("\n");
+    }
 
     for(int i = 0; i < 2; i++){
         rand_pos[0] = rand() % dimensions[0];
         rand_pos[1] = rand() % dimensions[1];             //sends random starting positions
         printf("random positions to send: %d %d\n", rand_pos[0], rand_pos[1]);
-        send(sock[0], rand_pos, (sizeof(int) * 2), 0);
+     //   send(sock[0], rand_pos, (sizeof(int) * 2), 0);
         if(i == 0){
             all_pac[sock[1]].pos[0] = rand_pos[0];
-            all_pac[sock[1]].pos[1] = rand_pos[1];  
-            push_update(all_pac[sock[1]], previous);
+            all_pac[sock[1]].pos[1] = rand_pos[1];              
+            push_update(all_pac[sock[1]], previous);          
         }
         else{
             all_monster[sock[1]].pos[0] = rand_pos[0];
             all_monster[sock[1]].pos[1] = rand_pos[1];
-            push_update(all_monster[sock[1]], previous);
+            push_update(all_monster[sock[1]], previous);            
         }                
     }
     
+    send(sock[0], all_pac, (sizeof(char_data) * MAX_CLIENT), 0);
+    send(sock[0], all_monster, (sizeof(char_data) * MAX_CLIENT), 0);
+    send_update(all_pac[sock[1]]);
+    send_update(all_monster[sock[1]]);  //sends to all other clients the newly connected player
+    
     while(1){      
-        printf("about to receive from player %d\n", sock[1]);
         if(recv(sock[0], &update, sizeof(char_data), 0) == 0){  
+            disconnect_player(update.id);
             printf("Client disconnected \n");
-            //disconnect_player(update.client_id);
-          /*  update.type = DISCONNECT;
-            push_update(update, previous_pos);*/
+            update.type = DISCONNECT;
+            push_update(update, previous);
+            send_update(all_pac[update.id]);
             break;
-        }        
-        
+        }                
         if(update.type == PACMAN){
             if(valid_movement(update, all_pac)){
                 previous = all_pac[update.id];
                 all_pac[update.id] = update;
-                push_update(all_pac[update.id], previous);    
-            }
-            
+                push_update(all_pac[update.id], previous);
+                send_update(all_pac[update.id]);
+            }            
         }
         else if(update.type == MONSTER){
             if(valid_movement(update, all_monster)){
-                printf("valid movement\n");
                 previous = all_monster[update.id];
                 all_monster[update.id] = update;
                 push_update(all_monster[update.id], previous);
+                send_update(all_monster[update.id]);
             }
-        }
+        }        
         
-       printf("x%d y%d \tid %d type %d\n", update.pos[0], update.pos[1], update.id, update.type);
+       //printf("x%d y%d \tid %d type %d\n", update.pos[0], update.pos[1], update.id, update.type);
     }
     pthread_exit(NULL);
 }
@@ -250,3 +236,24 @@ int valid_movement(char_data update, char_data character[MAX_CLIENT]){
     }
     return ret;
 }
+
+
+void send_update(char_data update){
+    for(int i = 0; i < MAX_CLIENT; i++){
+        if(client_sockets[i][1] != DISCONNECT){  //to send to just the conected players
+            send(client_sockets[i][0], &update, sizeof(char_data), 0);
+        }                                               
+    }
+}
+
+void disconnect_player(int id){
+    all_pac[id].id = id;
+    all_pac[id].type = DISCONNECT;
+    client_sockets[id][1] = DISCONNECT;
+    for(int i = 0; i < MAX_CLIENT; i++){
+        if(client_sockets[i][1] != DISCONNECT){
+            printf("sending disconect\n");
+            send(client_sockets[i][0], &all_pac[id], sizeof(char_data), 0);
+        }
+    }
+}                      
