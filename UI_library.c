@@ -224,4 +224,10 @@ void clear_place(int  board_x, int board_y){
 void get_board_place(int mouse_x, int mouse_y, int * board_x, int *board_y){
 	*board_x = mouse_x / col_width;
 	*board_y = mouse_y / row_height;
+	if(mouse_x == 0){
+		*board_x = -1;
+	}
+	if(mouse_y == 0){
+		*board_y = -1;
+	}
 }

@@ -17,7 +17,7 @@ void *checked_malloc(size_t size){
 }
 
 
-void init_character(char_data *character, int type, int id, int r, int g, int b){
+void init_character(char_data *character, int type, int id, int state, int r, int g, int b){
     character->pos[0] = 0;
     character->pos[1] = 0;
     character->color[0] = r;
@@ -25,6 +25,7 @@ void init_character(char_data *character, int type, int id, int r, int g, int b)
     character->color[2] = b;
     character->id = id;
     character->type = type;    
+    character->state = state;
 }
 
 void push_update(char_data update, char_data previous){
@@ -39,6 +40,7 @@ void push_update(char_data update, char_data previous){
     event_data[0]->color[2] = update.color[2];
     event_data[0]->type = update.type;    
     event_data[0]->id = update.id;
+    event_data[0]->state = update.state;
 	event_data[1] = malloc(sizeof(char_data));
 	event_data[1]->pos[0] = previous.pos[0];
 	event_data[1]->pos[1] = previous.pos[1];
@@ -52,23 +54,16 @@ void push_update(char_data update, char_data previous){
 
 void paint_update(char_data *data, char_data *previous, char_data all_pac[MAX_CLIENT], char_data all_monster[MAX_CLIENT]){
     int id = data->id;
-    if(data->type == DISCONNECT){
+    if(data->state == DISCONNECT){
         clear_place(all_pac[id].pos[0], all_pac[id].pos[1]);
         clear_place(all_monster[id].pos[0], all_monster[id].pos[1]);                    
     }           
-    else{     
-        if(data->type == PACMAN){ //pacman   
-            clear_place(previous->pos[0], previous->pos[1]);                 
-            paint_pacman(all_pac[id].pos[0], all_pac[id].pos[1], all_pac[id].color[0], all_pac[id].color[1], all_pac[id].color[2]);                    
-                                
-        }
-        else if(data->type == MONSTER){
-            clear_place(previous->pos[0], previous->pos[1]);
-            paint_monster(all_monster[id].pos[0], all_monster[id].pos[1], all_monster[id].color[0], all_monster[id].color[1], all_monster[id].color[2]);
-        }
-        else if(data->type == DISCONNECT) {
-            clear_place(all_pac[id].pos[0], all_pac[id].pos[1]);
-            clear_place(all_monster[id].pos[0], all_monster[id].pos[1]);
-        }
+    else if(data->type == PACMAN){ //pacman   
+        clear_place(previous->pos[0], previous->pos[1]);                 
+        paint_pacman(all_pac[id].pos[0], all_pac[id].pos[1], all_pac[id].color[0], all_pac[id].color[1], all_pac[id].color[2]);                          
+    }
+    else if(data->type == MONSTER){
+        clear_place(previous->pos[0], previous->pos[1]);
+        paint_monster(all_monster[id].pos[0], all_monster[id].pos[1], all_monster[id].color[0], all_monster[id].color[1], all_monster[id].color[2]);
     }
 }

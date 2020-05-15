@@ -17,6 +17,8 @@ Uint32 Event_Update;
 
 char_data all_pac[MAX_CLIENT];
 char_data all_monster[MAX_CLIENT];
+char_data local_pac;
+char_data local_monster;
 int local_id = 0;
 int dimensions[2];
 char **board;
@@ -26,8 +28,7 @@ int main(int argc, char *argv[]){
     int sock_fd;    
    
     int done = 0;
-    char_data local_pac;
-    char_data local_monster;
+
     SDL_Event event;
     pthread_t thread_id;
     
@@ -55,6 +56,12 @@ int main(int argc, char *argv[]){
                 char_data *data = event.user.data1;
                 char_data *previous = event.user.data2;
                 paint_update(data, previous, all_pac, all_monster);
+                if(data->state == ENDGAME){
+                    free(previous);
+                    free(data);
+                    printf("Kicked by admin\n");
+                    done = SDL_TRUE;
+                }
                 free(previous);
                 free(data);
             }
@@ -121,20 +128,25 @@ void *update_thread(void *arg){
         if(recv(*sock_fd, &update, sizeof(char_data), 0) == 0){
             //server closed
         }
-        if(update.type == PACMAN){
+        if(update.state == DISCONNECT){  //a client disconected
+            all_pac[update.id] = update;
+            push_update(update, previous);
+        }
+        else if(update.state == ENDGAME){
+            push_update(update, previous);
+        }  
+        else if(update.type == PACMAN){
             previous = all_pac[update.id];
             all_pac[update.id] = update;
+            local_pac = all_pac[update.id];
             push_update(all_pac[update.id], previous);
         }
         else if(update.type ==  MONSTER){
             previous = all_monster[update.id];
             all_monster[update.id] = update;
+            local_monster = all_monster[update.id];
             push_update(all_monster[update.id], previous);
-        }
-        else if(update.type == DISCONNECT){
-            all_pac[update.id] = update;
-            push_update(update, previous);
-        }         
+        }                
     }
 }   
 
@@ -144,6 +156,10 @@ void server_data(int sock_fd, char *argv[]){
     color[1] = atoi(argv[4]);
     color[2] = atoi(argv[5]);
     recv(sock_fd, &local_id, sizeof(int), 0);
+    if(local_id == KICK){
+        printf("You were kicked, board is full");
+        exit(0);
+    }
     recv(sock_fd, dimensions, (sizeof(int) * 2), 0);
     send(sock_fd, color, (sizeof(int) * 3), 0);                  //sends the color to server
     printf("dimensions: %d %d\n", dimensions[0], dimensions[1]);
@@ -168,7 +184,7 @@ void initial_paint(){
         }
     }
     for(int i = 0; i < MAX_CLIENT; i++){
-        if(all_pac[i].id != DISCONNECT){
+        if((all_pac[i].state != DISCONNECT) && (all_pac[i].state != NOT_CONNECT)){
             paint_pacman(all_pac[i].pos[0],all_pac[i].pos[1], all_pac[i].color[0], all_pac[i].color[1], all_pac[i].color[2]);
             paint_monster(all_monster[i].pos[0],all_monster[i].pos[1], all_monster[i].color[0], all_monster[i].color[1], all_monster[i].color[2]);
         }
