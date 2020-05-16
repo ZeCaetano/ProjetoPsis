@@ -21,7 +21,7 @@ char_data local_pac;
 char_data local_monster;
 int local_id = 0;
 int dimensions[2];
-char **board;
+board_struct **board;
 
 
 int main(int argc, char *argv[]){
@@ -87,6 +87,10 @@ int main(int argc, char *argv[]){
         }
     }
     close_board_windows();
+    for(int i = 0; i < dimensions[1]; i++){
+        free(board[i]);
+    }
+    free(board);
     return(0);
 }
 
@@ -138,15 +142,16 @@ void *update_thread(void *arg){
         else if(update.type == PACMAN){
             previous = all_pac[update.id];
             all_pac[update.id] = update;
-            local_pac = all_pac[update.id];
+            local_pac = all_pac[local_id];
             push_update(all_pac[update.id], previous);
         }
         else if(update.type ==  MONSTER){
             previous = all_monster[update.id];
             all_monster[update.id] = update;
-            local_monster = all_monster[update.id];
+            local_monster = all_monster[local_id];
             push_update(all_monster[update.id], previous);
-        }                
+        }   
+        printf("x%d y%d \tid %d type %d\n", update.pos[0], update.pos[1], update.id, update.type);             
     }
 }   
 
@@ -163,10 +168,10 @@ void server_data(int sock_fd, char *argv[]){
     recv(sock_fd, dimensions, (sizeof(int) * 2), 0);
     send(sock_fd, color, (sizeof(int) * 3), 0);                  //sends the color to server
     printf("dimensions: %d %d\n", dimensions[0], dimensions[1]);
-    board = checked_malloc(sizeof(char*) * dimensions[1]);             //rows
+    board = checked_malloc(sizeof(board_struct*) * dimensions[1]);             //rows
     for(int i = 0; i < dimensions[1]; i++){
-        board[i] = checked_malloc(sizeof(char) * dimensions[0]);      //columns
-        recv(sock_fd, board[i], (sizeof(char)*dimensions[0]), 0);
+        board[i] = checked_malloc(sizeof(board_struct) * dimensions[0]);      //columns
+        recv(sock_fd, board[i], (sizeof(board_struct)*dimensions[0]), 0);
     }    
 
     printf("local id %d\n", local_id);
@@ -178,7 +183,7 @@ void server_data(int sock_fd, char *argv[]){
 void initial_paint(){
     for(int i = 0; i < dimensions[1]; i++){
         for(int j = 0; j < dimensions[0]; j++){
-            if(board[i][j] == 'B'){
+            if(board[i][j].type == 'B'){
                 paint_brick(j, i);
             }
         }

@@ -7,11 +7,12 @@
 #define MAX_CLIENT 10
 #define PACMAN 0
 #define MONSTER 1
-#define NOT_CONNECT -777
+#define NOT_CONNECT -1
 #define CONNECT -123
 #define DISCONNECT -111
 #define ENDGAME -333
 #define KICK -555
+#define CHANGE -43
 
 typedef struct char_data{   //character data
     int pos[2];             //position
@@ -21,6 +22,10 @@ typedef struct char_data{   //character data
     int state;              //not connected, connected, disconected
 } char_data;
 
+typedef struct board_struct{
+    char type;
+    int id;
+} board_struct;
 
 /*_______________________________________General Functions______________________________________________*/
 
@@ -55,6 +60,10 @@ void player_data(int *sock, char_data previous);
 int bounce_on_walls(char_data update, char_data character[MAX_CLIENT]);
 //implements the bounce on bricks feature
 void bounce_on_brick(int id, char_data character[MAX_CLIENT], char_data previous);
+//implements all the interactions between characters
+int character_interactions(int id, char_data character[MAX_CLIENT], char_data previous_pac, char_data previous_monster);
+//changes the position between two characters
+void change_positions(char_data *pos_1, char type_1, char_data *pos_2, char type_2);
 
 
 

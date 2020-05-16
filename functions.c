@@ -44,6 +44,7 @@ void push_update(char_data update, char_data previous){
 	event_data[1] = malloc(sizeof(char_data));
 	event_data[1]->pos[0] = previous.pos[0];
 	event_data[1]->pos[1] = previous.pos[1];
+    event_data[1]->state = previous.state;
 
     SDL_zero(new_event);
     new_event.type = Event_Update;
@@ -57,6 +58,11 @@ void paint_update(char_data *data, char_data *previous, char_data all_pac[MAX_CL
     if(data->state == DISCONNECT){
         clear_place(all_pac[id].pos[0], all_pac[id].pos[1]);
         clear_place(all_monster[id].pos[0], all_monster[id].pos[1]);                    
+    }
+    else if(data->state == CHANGE){
+        printf("cCXHANGE\n");
+        paint_pacman(all_pac[id].pos[0], all_pac[id].pos[1], all_pac[id].color[0], all_pac[id].color[1], all_pac[id].color[2]);                          
+        paint_monster(all_monster[id].pos[0], all_monster[id].pos[1], all_monster[id].color[0], all_monster[id].color[1], all_monster[id].color[2]);
     }           
     else if(data->type == PACMAN){ //pacman   
         clear_place(previous->pos[0], previous->pos[1]);                 
