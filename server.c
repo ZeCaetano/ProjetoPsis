@@ -65,7 +65,7 @@ int main(){
             if(event.type == Event_Update){
                 char_data *data = event.user.data1;
                 char_data *previous = event.user.data2;
-                printf("x%d y%d \tid %d type %d\n", data->pos[0], data->pos[1], data->id, data->type);
+                printf("going to paint x%d y%d \tid %d type %d state %d\n", data->pos[0], data->pos[1], data->id, data->type, data->state);
                 paint_update(data, previous, all_pac, all_monster);                        
                 free(previous);                 
                 free(data);   
@@ -153,9 +153,7 @@ void *connect_client(void *arg){
             exit(-1);
         }
         printf("Connection made with client\n");
-        printf("sending id%d \n", client_id);
-        client_sockets[client_id][1] = client_id;
-                
+        client_sockets[client_id][1] = client_id;                
         pthread_create(&thread_id, NULL, client, (void *)client_sockets[client_id]);
         client_id ++;
     }
@@ -195,7 +193,7 @@ void *client(void *arg){
                 board[all_pac[update.id].pos[1]][all_pac[update.id].pos[0]].type = 'P';
                 board[all_pac[update.id].pos[1]][all_pac[update.id].pos[0]].id = update.id;                  
                 push_update(all_pac[update.id], previous_pac);
-                send_update(all_pac[update.id]);
+                send_update(all_pac[update.id]);                
             }            
         }
         else if(update.type == MONSTER){
@@ -210,15 +208,16 @@ void *client(void *arg){
                 board[all_monster[update.id].pos[1]][all_monster[update.id].pos[0]].type = 'M';
                 board[all_monster[update.id].pos[1]][all_monster[update.id].pos[0]].id = update.id;    
                 push_update(all_monster[update.id], previous_monster);
-                send_update(all_monster[update.id]);
+                send_update(all_monster[update.id]);                
             }
-        }   
+        }
+   
         for(int i = 0; i < dimensions[1]; i++){
             for(int j = 0; j < dimensions[0]; j++){
                 printf("%c.%d", board[i][j].type, board[i][j].id);
             }
-        printf("\n");
-        }             
+            printf("\n");
+        }          
        //printf("x%d y%d \tid %d type %d\n", update.pos[0], update.pos[1], update.id, update.type);
     }
   //  free(sock);
@@ -291,7 +290,6 @@ void player_data(int *sock, char_data previous){
             rand_pos[0] = rand() % dimensions[0];
             rand_pos[1] = rand() % dimensions[1];             //creates random starting positions
         }while(board[rand_pos[1]][rand_pos[0]].type != ' ');
-        printf("random positions to send: %d %d\n", rand_pos[0], rand_pos[1]);
         if(i == 0){
             all_pac[sock[1]].pos[0] = rand_pos[0];
             all_pac[sock[1]].pos[1] = rand_pos[1]; 
@@ -318,19 +316,19 @@ int bounce_on_walls(char_data update, char_data character[MAX_CLIENT]){
     int id = update.id;
     int ret = 1;
     if(update.pos[0] < 0){
-        if(board[character[id].pos[1]][1].type == ' ')   //only if spot is empty
+        if(board[character[id].pos[1]][1].type != 'B')   //only if spot is empty
             character[id].pos[0] = 1;  //bounce on the left border        
     }
     else if(update.pos[0] == dimensions[0]){
-        if(board[character[id].pos[1]][dimensions[0] - 2].type == ' ')   //only if spot is empty
+        if(board[character[id].pos[1]][dimensions[0] - 2].type != 'B')   //only if spot is empty
             character[id].pos[0] = dimensions[0] - 2;  //bounce on the right border
     }
     else if(update.pos[1] < 0){
-        if(board[1][character[id].pos[0]].type == ' ')   //only if spot is empty
+        if(board[1][character[id].pos[0]].type != 'B')   //only if spot is empty
             character[id].pos[1] = 1;  //bounce on the top border
     }
     else if(update.pos[1] == dimensions[1]){
-        if(board[dimensions[1] - 2][character[id].pos[0]].type == ' ')   //only if spot is empty
+        if(board[dimensions[1] - 2][character[id].pos[0]].type != 'B')   //only if spot is empty
             character[id].pos[1] = dimensions[1] - 2;  //bounce on the bottom border
     }
     else{
@@ -381,19 +379,19 @@ void bounce_on_brick(int id, char_data character[MAX_CLIENT], char_data previous
 }
 
 int character_interactions(int id, char_data character[MAX_CLIENT], char_data previous_pac, char_data previous_monster){
+    int occupant_id;
     if(character[id].type == PACMAN){
-        if(board[character[id].pos[1]][character[id].pos[0]].id == id){
-            printf("position occupied\n");
+        if(board[character[id].pos[1]][character[id].pos[0]].id == id){    //if it's the monster of the same player
+            printf("position occupied by your monster\n");
             character[id] = previous_pac;
-            printf("%d %d\t %d %d\n", character[id].pos[0], character[id].pos[1], all_monster[id].pos[0], all_monster[id].pos[1]);
-            change_positions(&character[id], 'P', &all_monster[id], 'M');
-            printf("%d %d\t %d %d\n", character[id].pos[0], character[id].pos[1], all_monster[id].pos[0], all_monster[id].pos[1]);
-            board[all_monster[id].pos[1]][all_monster[id].pos[0]].type = 'M';
-            board[all_monster[id].pos[1]][all_monster[id].pos[0]].id = id;  
-            all_monster[id].state = CHANGE;  
-            all_pac[id].state = CHANGE;  
-            push_update(all_monster[id], previous_monster);
-            send_update(all_monster[id]);                      
+            change_positions(&character[id], 'P', &all_monster[id], 'M', id);                      
+            return(1);
+        }
+        else if(board[character[id].pos[1]][character[id].pos[0]].type == 'P' || board[character[id].pos[1]][character[id].pos[0]].type == 'S'){   //if it's another pacman(super or not)
+            occupant_id = board[character[id].pos[1]][character[id].pos[0]].id;
+            printf("position occupied by pacman of player %d\n", occupant_id);
+            character[id] = previous_pac;
+            change_positions(&character[id], 'P', &all_pac[occupant_id], 'P', occupant_id);
             return(1);
         }
     }
@@ -401,29 +399,35 @@ int character_interactions(int id, char_data character[MAX_CLIENT], char_data pr
         if(board[character[id].pos[1]][character[id].pos[0]].id == id){
             printf("position occupied\n");
             character[id] = previous_monster;
-            printf("%d %d\t %d %d\n", character[id].pos[0], character[id].pos[1], all_pac[id].pos[0], all_pac[id].pos[1]);
-            change_positions(&character[id], 'M', &all_pac[id], 'P');
-            printf("%d %d\t %d %d\n", character[id].pos[0], character[id].pos[1], all_pac[id].pos[0], all_pac[id].pos[1]);
-            board[all_pac[id].pos[1]][all_pac[id].pos[0]].type = 'P';
-            board[all_pac[id].pos[1]][all_pac[id].pos[0]].id = id;
-            all_monster[id].state = CHANGE; 
-            all_pac[id].state = CHANGE;
-            push_update(all_pac[id], previous_pac);
-            send_update(all_pac[id]);           
+            change_positions(&character[id], 'M', &all_pac[id], 'P', id);                    
+            return(1);
+        }
+        else if(board[character[id].pos[1]][character[id].pos[0]].type == 'M'){            
+            occupant_id = board[character[id].pos[1]][character[id].pos[0]].id;
+            printf("position occupied by monster of player %d\n", occupant_id);
+            character[id] = previous_monster;
+            change_positions(&character[id], 'M', &all_monster[occupant_id], 'M', occupant_id);
             return(1);
         }
     }
-    all_monster[id].state = CONNECT;  
     all_pac[id].state = CONNECT;
+    all_monster[id].state = CONNECT;
     return(0);
 }
 
-void change_positions(char_data *pos_1, char type_1, char_data *pos_2, char type_2){
+void change_positions(char_data *pos_1, char type_1, char_data *pos_2, char type_2, int occupant_id){
     int aux[2];        
+    char_data previous = *pos_1;  //this is just to initialize this value; it won't be used cause the state is CHANGE so the SDL event won't access this variable
     aux[0] = pos_1->pos[0];
     aux[1] = pos_1->pos[1];
     pos_1->pos[0] = pos_2->pos[0];
     pos_1->pos[1] = pos_2->pos[1];
     pos_2->pos[0] = aux[0];
     pos_2->pos[1] = aux[1];
+    board[pos_2->pos[1]][pos_2->pos[0]].type = type_2;
+    board[pos_2->pos[1]][pos_2->pos[0]].id = occupant_id;  
+    pos_2->state = CHANGE;  
+    pos_1->state = CHANGE;
+    push_update(*pos_2, previous);
+    send_update(*pos_2);
 }
