@@ -64,6 +64,8 @@ void bounce_on_brick(int id, char_data character[MAX_CLIENT], char_data previous
 int character_interactions(int id, char_data character[MAX_CLIENT], char_data previous_pac, char_data previous_monster);
 //changes the position between two characters
 void change_positions(char_data *pos_1, char type_1, char_data *pos_2, char type_2, int occupant_id);
+// creates random postition for pacman after being eaten
+void eat(char_data *eaten, char eaten_type, int moving_type);
 
 
 

@@ -206,18 +206,18 @@ void *client(void *arg){
                 board[previous_monster.pos[1]][previous_monster.pos[0]].id = NOT_CONNECT;
                 character_interactions(update.id, all_monster, previous_pac, previous_monster);
                 board[all_monster[update.id].pos[1]][all_monster[update.id].pos[0]].type = 'M';
-                board[all_monster[update.id].pos[1]][all_monster[update.id].pos[0]].id = update.id;    
+                board[all_monster[update.id].pos[1]][all_monster[update.id].pos[0]].id = update.id;   
                 push_update(all_monster[update.id], previous_monster);
                 send_update(all_monster[update.id]);                
             }
-        }
+        }        
    
-        for(int i = 0; i < dimensions[1]; i++){
+      /*  for(int i = 0; i < dimensions[1]; i++){
             for(int j = 0; j < dimensions[0]; j++){
                 printf("%c.%d", board[i][j].type, board[i][j].id);
             }
             printf("\n");
-        }          
+        } */         
        //printf("x%d y%d \tid %d type %d\n", update.pos[0], update.pos[1], update.id, update.type);
     }
   //  free(sock);
@@ -394,19 +394,28 @@ int character_interactions(int id, char_data character[MAX_CLIENT], char_data pr
             change_positions(&character[id], 'P', &all_pac[occupant_id], 'P', occupant_id);
             return(1);
         }
+        else if(board[character[id].pos[1]][character[id].pos[0]].type == 'M'){
+            eat(&all_pac[id], 'P', PACMAN);
+            return(1);
+        }
     }
     else if(character[id].type == MONSTER){
-        if(board[character[id].pos[1]][character[id].pos[0]].id == id){
+        if(board[character[id].pos[1]][character[id].pos[0]].id == id){    //if it's the pacman of the same player
             printf("position occupied\n");
             character[id] = previous_monster;
             change_positions(&character[id], 'M', &all_pac[id], 'P', id);                    
             return(1);
         }
-        else if(board[character[id].pos[1]][character[id].pos[0]].type == 'M'){            
+        else if(board[character[id].pos[1]][character[id].pos[0]].type == 'M'){      //if it's a monster from another player
             occupant_id = board[character[id].pos[1]][character[id].pos[0]].id;
             printf("position occupied by monster of player %d\n", occupant_id);
             character[id] = previous_monster;
             change_positions(&character[id], 'M', &all_monster[occupant_id], 'M', occupant_id);
+            return(1);
+        }
+        else if(board[character[id].pos[1]][character[id].pos[0]].type == 'P'){
+            occupant_id = board[character[id].pos[1]][character[id].pos[0]].id;
+            eat(&all_pac[occupant_id], 'P', MONSTER);
             return(1);
         }
     }
@@ -430,4 +439,25 @@ void change_positions(char_data *pos_1, char type_1, char_data *pos_2, char type
     pos_1->state = CHANGE;
     push_update(*pos_2, previous);
     send_update(*pos_2);
+}
+
+void eat(char_data *eaten, char eaten_type, int moving_type){
+    int rand_pos0;
+    int rand_pos1;
+    char_data previous = *eaten;
+    do{
+        rand_pos0 = rand()%dimensions[0];
+        rand_pos1 = rand()%dimensions[1];
+    }while(board[rand_pos1][rand_pos0].type != ' ');
+    printf("rand %d %d\n", rand_pos0, rand_pos1);
+    eaten->pos[0] = rand_pos0;
+    eaten->pos[1] = rand_pos1;    
+    if(eaten->type != moving_type){   //if who is eaten is not the one moving
+        printf("the one eaten was not moving\n");
+        board[eaten->pos[1]][eaten->pos[0]].type = eaten_type;
+        board[eaten->pos[1]][eaten->pos[0]].id = eaten->id;
+        eaten->state = CHANGE;
+        push_update(*eaten, previous);
+        send_update(*eaten);
+    }
 }
