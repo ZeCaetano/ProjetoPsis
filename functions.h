@@ -13,6 +13,8 @@
 #define ENDGAME -333
 #define KICK -555
 #define CHANGE -43
+#define JUST_UPDATE_VAR -1000
+#define SPEED 500000000   //minimum nanoseconds allowed between moves
 
 typedef struct char_data{   //character data
     int pos[2];             //position
@@ -66,6 +68,8 @@ int character_interactions(int id, char_data character[MAX_CLIENT], char_data pr
 void change_positions(char_data *pos_1, char type_1, char_data *pos_2, char type_2, int occupant_id);
 // creates random postition for pacman after being eaten
 void eat(char_data *eaten, char eaten_type, int moving_type);
+//handles the speed limit on the characters
+int over_speed(struct timespec time_of_play, struct timespec *char_play);
 
 
 /*___________________________________Player Specific Funtions_______________________________________________*/

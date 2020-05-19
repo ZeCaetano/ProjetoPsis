@@ -168,14 +168,22 @@ void *connect_client(void *arg){
 
 void *client(void *arg){
     int *sock = (int*)arg;
+    int ret;
     char_data update;
     char_data previous;
+    struct timespec time_of_new_play;
+    struct timespec time_of_pac_play;
+    struct timespec time_of_monster_play;
+    time_of_monster_play.tv_sec = 0;
+    time_of_pac_play.tv_sec = 0;
     printf("New client thread created\n");
     
     player_data(sock, previous);
         
-    while(1){      
-        if(recv(sock[0], &update, sizeof(char_data), 0) == 0){  
+    while(1){    
+        ret = recv(sock[0], &update, sizeof(char_data), 0);
+        clock_gettime(CLOCK_MONOTONIC, &time_of_new_play); 
+        if(ret == 0){              
             disconnect_player(update.id);
             printf("Client disconnected \n");
             update.state = DISCONNECT;
@@ -185,39 +193,46 @@ void *client(void *arg){
         }               
         char_data previous_pac = all_pac[update.id];                
         char_data previous_monster = all_monster[update.id];
-        if(update.type == PACMAN){
+        if(update.type == PACMAN){            
             if(valid_movement(update, all_pac)){
-                
-                if(bounce_on_walls(update, all_pac) == 0){          //if it bounces on a wall it won't bounce on a brick
-                    all_pac[update.id] = update;                    //same goes for bounce on brick
-                    bounce_on_brick(update.id, all_pac, previous_pac);                    
-                }                         
-                board[previous_pac.pos[1]][previous_pac.pos[0]].type = ' ';
-                board[previous_pac.pos[1]][previous_pac.pos[0]].id = NOT_CONNECT;
-                pthread_mutex_lock(&mux_interactions);   
-                character_interactions(update.id, all_pac, previous_pac, previous_monster);
-                pthread_mutex_unlock(&mux_interactions);
-                board[all_pac[update.id].pos[1]][all_pac[update.id].pos[0]].type = 'P';
-                board[all_pac[update.id].pos[1]][all_pac[update.id].pos[0]].id = update.id;                  
-                push_update(all_pac[update.id], previous_pac, &mux_sdl);
-                send_update(all_pac[update.id]);                
+                if(over_speed(time_of_new_play, &time_of_pac_play) == 0){
+                    if(bounce_on_walls(update, all_pac) == 0){          //if it bounces on a wall it won't bounce on a brick
+                        all_pac[update.id] = update;                    //same goes for bounce on brick
+                        bounce_on_brick(update.id, all_pac, previous_pac);                    
+                    }                         
+                    board[previous_pac.pos[1]][previous_pac.pos[0]].type = ' ';
+                    board[previous_pac.pos[1]][previous_pac.pos[0]].id = NOT_CONNECT;
+                    pthread_mutex_lock(&mux_interactions);   
+                    character_interactions(update.id, all_pac, previous_pac, previous_monster);
+                    pthread_mutex_unlock(&mux_interactions);
+                    board[all_pac[update.id].pos[1]][all_pac[update.id].pos[0]].type = 'P';
+                    board[all_pac[update.id].pos[1]][all_pac[update.id].pos[0]].id = update.id;                  
+                    push_update(all_pac[update.id], previous_pac, &mux_sdl);
+                    send_update(all_pac[update.id]);                
+                }
             }            
         }
-        else if(update.type == MONSTER){
+        else if(update.type == MONSTER){            
             if(valid_movement(update, all_monster)){                                
-                if(bounce_on_walls(update, all_monster) == 0){
-                    all_monster[update.id] = update;    
-                    bounce_on_brick(update.id, all_monster, previous_monster);                    
+                if(over_speed(time_of_new_play, &time_of_monster_play) == 0){                
+                    if(bounce_on_walls(update, all_monster) == 0){
+                        all_monster[update.id] = update;    
+                        bounce_on_brick(update.id, all_monster, previous_monster);                    
+                    }
+                    board[previous_monster.pos[1]][previous_monster.pos[0]].type = ' ';
+                    board[previous_monster.pos[1]][previous_monster.pos[0]].id = NOT_CONNECT;
+                    pthread_mutex_lock(&mux_interactions);
+                    character_interactions(update.id, all_monster, previous_pac, previous_monster);
+                    pthread_mutex_unlock(&mux_interactions); 
+                    board[all_monster[update.id].pos[1]][all_monster[update.id].pos[0]].type = 'M';
+                    board[all_monster[update.id].pos[1]][all_monster[update.id].pos[0]].id = update.id;   
+                    push_update(all_monster[update.id], previous_monster, &mux_sdl);
+                    send_update(all_monster[update.id]);                
                 }
-                board[previous_monster.pos[1]][previous_monster.pos[0]].type = ' ';
-                board[previous_monster.pos[1]][previous_monster.pos[0]].id = NOT_CONNECT;
-                pthread_mutex_lock(&mux_interactions);
-                character_interactions(update.id, all_monster, previous_pac, previous_monster);
-                pthread_mutex_unlock(&mux_interactions); 
-                board[all_monster[update.id].pos[1]][all_monster[update.id].pos[0]].type = 'M';
-                board[all_monster[update.id].pos[1]][all_monster[update.id].pos[0]].id = update.id;   
-                push_update(all_monster[update.id], previous_monster, &mux_sdl);
-                send_update(all_monster[update.id]);                
+                else{
+                    all_monster[update.id].state = JUST_UPDATE_VAR;
+                    send_update(all_monster[update.id]);
+                }
             }
         }        
    
@@ -229,7 +244,6 @@ void *client(void *arg){
         } */         
        //printf("x%d y%d \tid %d type %d\n", update.pos[0], update.pos[1], update.id, update.type);
     }
-  //  free(sock);
     pthread_exit(NULL);
 }
 
@@ -470,4 +484,26 @@ void eat(char_data *eaten, char eaten_type, int moving_type){
         push_update(*eaten, previous, &mux_sdl);
         send_update(*eaten);
     }
+}
+
+int over_speed(struct timespec time_of_play, struct timespec *char_play){
+    long int delta = 0;
+    printf("delta time %ld\n", (time_of_play.tv_sec - char_play->tv_sec));
+    if((time_of_play.tv_sec - char_play->tv_sec) >= 1){
+        *char_play = time_of_play;
+        return(0);
+    }
+    delta = time_of_play.tv_nsec - char_play->tv_nsec;
+    if(delta < 0){
+        delta = 1 - delta;
+    }
+    printf("time difference %ld\n", delta);
+    if(delta >= SPEED){
+        *char_play = time_of_play;
+        return(0);
+    }
+    printf("Moving too fast\n");
+    *char_play = time_of_play;
+    return(1);
+
 }

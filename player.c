@@ -148,6 +148,9 @@ void *update_thread(void *arg){
         }
         else if(update.state == ENDGAME){
             push_update(update, previous, &mux_sdl);
+        }
+        else if(update.state == JUST_UPDATE_VAR){
+            local_monster = update;
         }  
         else if(update.type == PACMAN){
             previous = all_pac[update.id];
