@@ -23,7 +23,7 @@ $(PLAYER): $(PLAYER).c
 clean:
 	rm $(SERVER) $(PLAYER)
 
-ADDRS = 127.0.0.1
+ADDRS = 192.168.1.5
 PORT = 55555
 init:
 	./server

@@ -13,6 +13,7 @@
 #include "functions.h"
 
 Uint32 Event_Update;
+Uint32 Event_bot;
 
 
 char_data all_pac[MAX_CLIENT];
@@ -22,6 +23,7 @@ char_data local_monster;
 int local_id = 0;
 int dimensions[2];
 board_struct **board;
+pthread_mutex_t mux_sdl;
 
 
 int main(int argc, char *argv[]){
@@ -41,6 +43,8 @@ int main(int argc, char *argv[]){
     server_data(sock_fd, argv);
     local_pac = all_pac[local_id];
     local_monster = all_monster[local_id];
+
+    pthread_mutex_init(&mux_sdl, NULL);
         
     pthread_create(&thread_id, NULL, update_thread, (void *)&sock_fd);
 
@@ -48,6 +52,12 @@ int main(int argc, char *argv[]){
     initial_paint();
 
     while(!done){
+        local_pac.pos[0] = rand()%dimensions[0];
+        local_pac.pos[1] = rand()%dimensions[1];
+        local_monster.pos[0] = rand()%dimensions[0];
+        local_monster.pos[1] = rand()%dimensions[1];
+        send(sock_fd, &local_pac, sizeof(char_data), 0);
+        send(sock_fd, &local_monster, sizeof(char_data), 0);
         if(SDL_WaitEvent(&event)){
             if(event.type == SDL_QUIT){
                 done = SDL_TRUE;
@@ -66,7 +76,7 @@ int main(int argc, char *argv[]){
                 free(data);
             }
             if(event.type == SDL_MOUSEMOTION){
-                get_board_place(event.motion.x, event.motion.y, &local_pac.pos[0], &local_pac.pos[1]);
+                get_board_place(event.motion.x, event.motion.y, &local_pac.pos[0], &local_pac.pos[1]);                
                 send(sock_fd, &local_pac, sizeof(char_data), 0);
             }
             if(event.type == SDL_KEYDOWN){
@@ -134,22 +144,22 @@ void *update_thread(void *arg){
         }
         if(update.state == DISCONNECT){  //a client disconected
             all_pac[update.id] = update;
-            push_update(update, previous);
+            push_update(update, previous, &mux_sdl);
         }
         else if(update.state == ENDGAME){
-            push_update(update, previous);
+            push_update(update, previous, &mux_sdl);
         }  
         else if(update.type == PACMAN){
             previous = all_pac[update.id];
             all_pac[update.id] = update;
             local_pac = all_pac[local_id];
-            push_update(all_pac[update.id], previous);
+            push_update(all_pac[update.id], previous, &mux_sdl);
         }
         else if(update.type ==  MONSTER){
             previous = all_monster[update.id];
             all_monster[update.id] = update;
             local_monster = all_monster[local_id];
-            push_update(all_monster[update.id], previous);
+            push_update(all_monster[update.id], previous, &mux_sdl);
         }   
         printf("x%d y%d \tid %d type %d\n", update.pos[0], update.pos[1], update.id, update.type);             
     }
@@ -195,6 +205,3 @@ void initial_paint(){
         }
     }
 }
-
-
-//just receives board with kinda half the data

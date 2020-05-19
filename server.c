@@ -23,7 +23,8 @@ int client_sockets[MAX_CLIENT][2];     //socket for every client; [0] for socket
 char_data all_pac[MAX_CLIENT];
 char_data all_monster[MAX_CLIENT];
 int occupied_places;
-
+pthread_mutex_t mux_interactions;
+pthread_mutex_t mux_sdl;
 
 int main(){
     pthread_t connect_thread;
@@ -37,12 +38,16 @@ int main(){
     }    
 
     read_file();
+    pthread_mutex_init(&mux_interactions, NULL);
+    pthread_mutex_init(&mux_sdl, NULL);
     pthread_create(&connect_thread, NULL, connect_client, NULL);
 
     for(int i = 0; i < MAX_CLIENT; i++){
         init_character(&all_pac[i], PACMAN, i, NOT_CONNECT, 0, 0, 0);
         init_character(&all_monster[i], MONSTER, i, NOT_CONNECT, 0, 0, 0);
     }
+
+
 
    // pthread_join(connect_thread, NULL);    
     create_board_window(dimensions[0], dimensions[1]);
@@ -174,7 +179,7 @@ void *client(void *arg){
             disconnect_player(update.id);
             printf("Client disconnected \n");
             update.state = DISCONNECT;
-            push_update(update, previous);
+            push_update(update, previous, &mux_sdl);
             send_update(all_pac[update.id]);
             break;
         }               
@@ -188,11 +193,13 @@ void *client(void *arg){
                     bounce_on_brick(update.id, all_pac, previous_pac);                    
                 }                         
                 board[previous_pac.pos[1]][previous_pac.pos[0]].type = ' ';
-                board[previous_pac.pos[1]][previous_pac.pos[0]].id = NOT_CONNECT;   
+                board[previous_pac.pos[1]][previous_pac.pos[0]].id = NOT_CONNECT;
+                pthread_mutex_lock(&mux_interactions);   
                 character_interactions(update.id, all_pac, previous_pac, previous_monster);
+                pthread_mutex_unlock(&mux_interactions);
                 board[all_pac[update.id].pos[1]][all_pac[update.id].pos[0]].type = 'P';
                 board[all_pac[update.id].pos[1]][all_pac[update.id].pos[0]].id = update.id;                  
-                push_update(all_pac[update.id], previous_pac);
+                push_update(all_pac[update.id], previous_pac, &mux_sdl);
                 send_update(all_pac[update.id]);                
             }            
         }
@@ -204,10 +211,12 @@ void *client(void *arg){
                 }
                 board[previous_monster.pos[1]][previous_monster.pos[0]].type = ' ';
                 board[previous_monster.pos[1]][previous_monster.pos[0]].id = NOT_CONNECT;
+                pthread_mutex_lock(&mux_interactions);
                 character_interactions(update.id, all_monster, previous_pac, previous_monster);
+                pthread_mutex_unlock(&mux_interactions); 
                 board[all_monster[update.id].pos[1]][all_monster[update.id].pos[0]].type = 'M';
                 board[all_monster[update.id].pos[1]][all_monster[update.id].pos[0]].id = update.id;   
-                push_update(all_monster[update.id], previous_monster);
+                push_update(all_monster[update.id], previous_monster, &mux_sdl);
                 send_update(all_monster[update.id]);                
             }
         }        
@@ -295,14 +304,14 @@ void player_data(int *sock, char_data previous){
             all_pac[sock[1]].pos[1] = rand_pos[1]; 
             board[all_pac[sock[1]].pos[1]][all_pac[sock[1]].pos[0]].type = 'P';      
             board[all_pac[sock[1]].pos[1]][all_pac[sock[1]].pos[0]].id = sock[1];       
-            push_update(all_pac[sock[1]], previous);          
+            push_update(all_pac[sock[1]], previous, &mux_sdl);          
         }
         else{
             all_monster[sock[1]].pos[0] = rand_pos[0];
             all_monster[sock[1]].pos[1] = rand_pos[1];
             board[all_monster[sock[1]].pos[1]][all_monster[sock[1]].pos[0]].type = 'M';             
             board[all_monster[sock[1]].pos[1]][all_monster[sock[1]].pos[0]].id = sock[1];
-            push_update(all_monster[sock[1]], previous);            //paints starting positions on server
+            push_update(all_monster[sock[1]], previous, &mux_sdl);            //paints starting positions on server
         }                
     }
 
@@ -379,7 +388,7 @@ void bounce_on_brick(int id, char_data character[MAX_CLIENT], char_data previous
 }
 
 int character_interactions(int id, char_data character[MAX_CLIENT], char_data previous_pac, char_data previous_monster){
-    int occupant_id;
+    int occupant_id;   
     if(character[id].type == PACMAN){
         if(board[character[id].pos[1]][character[id].pos[0]].id == id){    //if it's the monster of the same player
             printf("position occupied by your monster\n");
@@ -398,6 +407,7 @@ int character_interactions(int id, char_data character[MAX_CLIENT], char_data pr
             eat(&all_pac[id], 'P', PACMAN);
             return(1);
         }
+    
     }
     else if(character[id].type == MONSTER){
         if(board[character[id].pos[1]][character[id].pos[0]].id == id){    //if it's the pacman of the same player
@@ -437,7 +447,7 @@ void change_positions(char_data *pos_1, char type_1, char_data *pos_2, char type
     board[pos_2->pos[1]][pos_2->pos[0]].id = occupant_id;  
     pos_2->state = CHANGE;  
     pos_1->state = CHANGE;
-    push_update(*pos_2, previous);
+    push_update(*pos_2, previous, &mux_sdl);
     send_update(*pos_2);
 }
 
@@ -457,7 +467,7 @@ void eat(char_data *eaten, char eaten_type, int moving_type){
         board[eaten->pos[1]][eaten->pos[0]].type = eaten_type;
         board[eaten->pos[1]][eaten->pos[0]].id = eaten->id;
         eaten->state = CHANGE;
-        push_update(*eaten, previous);
+        push_update(*eaten, previous, &mux_sdl);
         send_update(*eaten);
     }
 }

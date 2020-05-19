@@ -2,6 +2,8 @@
 
 #include "functions.h"
 #include "UI_library.h"
+#include <pthread.h>
+
 
 Uint32 Event_Update;
 
@@ -28,7 +30,7 @@ void init_character(char_data *character, int type, int id, int state, int r, in
     character->state = state;
 }
 
-void push_update(char_data update, char_data previous){
+void push_update(char_data update, char_data previous, pthread_mutex_t *mux_sdl){
     SDL_Event new_event;
     char_data *event_data[2];
 
@@ -45,12 +47,13 @@ void push_update(char_data update, char_data previous){
 	event_data[1]->pos[0] = previous.pos[0];
 	event_data[1]->pos[1] = previous.pos[1];
     event_data[1]->state = previous.state;
-
+    pthread_mutex_lock(mux_sdl);                  //to make sure data 1 doesn't get overwritten by another thread
     SDL_zero(new_event);
     new_event.type = Event_Update;
     new_event.user.data1 = event_data[0];
     new_event.user.data2 = event_data[1];
     SDL_PushEvent(&new_event);
+    pthread_mutex_unlock(mux_sdl);
 }
 
 void paint_update(char_data *data, char_data *previous, char_data all_pac[MAX_CLIENT], char_data all_monster[MAX_CLIENT]){
