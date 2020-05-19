@@ -52,12 +52,12 @@ int main(int argc, char *argv[]){
     initial_paint();
 
     while(!done){
-        local_pac.pos[0] = rand()%dimensions[0];
+     /*   local_pac.pos[0] = rand()%dimensions[0];
         local_pac.pos[1] = rand()%dimensions[1];
         local_monster.pos[0] = rand()%dimensions[0];
         local_monster.pos[1] = rand()%dimensions[1];
         send(sock_fd, &local_pac, sizeof(char_data), 0);
-        send(sock_fd, &local_monster, sizeof(char_data), 0);
+        send(sock_fd, &local_monster, sizeof(char_data), 0);*/
         if(SDL_WaitEvent(&event)){
             if(event.type == SDL_QUIT){
                 done = SDL_TRUE;
