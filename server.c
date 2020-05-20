@@ -254,8 +254,8 @@ int valid_movement(char_data update, char_data character[MAX_CLIENT]){
         if((update.pos[0] == character[update.id].pos[0] + 1 && update.pos[1] == character[update.id].pos[1])  
         || (update.pos[0] == character[update.id].pos[0] - 1 && update.pos[1] == character[update.id].pos[1]) 
         || (update.pos[1] == character[update.id].pos[1] + 1 && update.pos[0] == character[update.id].pos[0])
-        || (update.pos[1] == character[update.id].pos[1] - 1 && update.pos[0] == character[update.id].pos[0])){
-            ret = 1;
+        || (update.pos[1] == character[update.id].pos[1] - 1 && update.pos[0] == character[update.id].pos[0])){   //if it's any of the adjacent places
+            ret = 1; 
             }
     }
     return ret;
@@ -488,22 +488,37 @@ void eat(char_data *eaten, char eaten_type, int moving_type){
 
 int over_speed(struct timespec time_of_play, struct timespec *char_play){
     long int delta = 0;
-    printf("delta time %ld\n", (time_of_play.tv_sec - char_play->tv_sec));
-    if((time_of_play.tv_sec - char_play->tv_sec) >= 1){
-        *char_play = time_of_play;
-        return(0);
-    }
+    printf("seconds time diference %ld\n", (time_of_play.tv_sec - char_play->tv_sec));
     delta = time_of_play.tv_nsec - char_play->tv_nsec;
-    if(delta < 0){
-        delta = 1 - delta;
+    
+    if(((time_of_play.tv_sec - char_play->tv_sec) == 0)){
+        printf("same second\n");
+        printf("nanoseconds time difference%ld\n", delta);
+        if(delta < SPEED){
+            return(1);
+        }
+        else{
+            *char_play = time_of_play;
+            return(0);
+        }
     }
-    printf("time difference %ld\n", delta);
-    if(delta >= SPEED){
+    else if((time_of_play.tv_sec - char_play->tv_sec) == 1){
+        printf("next second\n");
+        if(delta < 0){
+            delta = (999999999 + delta) + 1;
+        }
+        printf("nanoseconds time difference%ld\n", delta);
+        if(delta < SPEED){
+            return(1);
+        }
+        else {
+            *char_play = time_of_play;
+            return(0);
+        }            
+    }
+    else{
+        printf("a few seconds after\n");
         *char_play = time_of_play;
         return(0);
-    }
-    printf("Moving too fast\n");
-    *char_play = time_of_play;
-    return(1);
-
+    }       
 }
