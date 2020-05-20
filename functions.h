@@ -73,7 +73,10 @@ int over_speed(struct timespec time_of_play, struct timespec *char_play);
 //implements inactivity jump
 void inactivity_jump(int id);
 //analizes and updates the new move
-void new_move(char_data character[MAX_CLIENT]);
+void new_move(char_data character[MAX_CLIENT], char type);
+//thread for pacman and monster movements
+void *pac_thread(void *);
+void *monster_thread(void *);
 
 
 /*___________________________________Player Specific Funtions_______________________________________________*/

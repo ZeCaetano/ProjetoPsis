@@ -25,6 +25,8 @@ char_data all_pac[MAX_CLIENT];
 char_data all_monster[MAX_CLIENT];
 char_data update;
 int occupied_places;
+int new_pac_move;
+int new_monster_move;
 struct timespec time_of_new_play;
 pthread_mutex_t mux_interactions;
 pthread_mutex_t mux_sdl;
@@ -172,10 +174,15 @@ void *connect_client(void *arg){
 void *client(void *arg){
     int *sock = (int*)arg;
     int ret;
+    pthread_t pac_thread_id;
+    pthread_t monster_thread_id;
     char_data previous;
     printf("New client thread created\n");
     
     player_data(sock, previous);
+
+    pthread_create(&pac_thread_id, NULL, pac_thread, NULL);
+    pthread_create(&monster_thread_id, NULL, monster_thread, NULL);
         
     while(1){    
        // alarm(5);
@@ -190,11 +197,11 @@ void *client(void *arg){
             send_update(all_pac[update.id]);
             break;
         }               
-        if(update.type == PACMAN){            
-            new_move(all_pac);
+        if(update.type == PACMAN){ 
+            new_pac_move = 1;           
         }
         else if(update.type == MONSTER){            
-            new_move(all_monster);
+            new_monster_move = 1;
         }        
    
       /*  for(int i = 0; i < dimensions[1]; i++){
@@ -497,7 +504,7 @@ void inactivity_jump(int id){
     alarm(5);
 }
 
-void new_move(char_data character[MAX_CLIENT]){
+void new_move(char_data character[MAX_CLIENT], char type){
     struct timespec time_of_char_play;
     time_of_char_play.tv_sec = 0;
     char_data previous = character[update.id];                
@@ -512,7 +519,7 @@ void new_move(char_data character[MAX_CLIENT]){
             pthread_mutex_lock(&mux_interactions);   
             character_interactions(update.id, character, previous);
             pthread_mutex_unlock(&mux_interactions);
-            board[character[update.id].pos[1]][character[update.id].pos[0]].type = 'P';
+            board[character[update.id].pos[1]][character[update.id].pos[0]].type = type;
             board[character[update.id].pos[1]][character[update.id].pos[0]].id = update.id;                  
             push_update(character[update.id], previous, &mux_sdl);
             send_update(character[update.id]);                
@@ -520,6 +527,24 @@ void new_move(char_data character[MAX_CLIENT]){
         else{
             character[update.id].state = JUST_UPDATE_VAR;
             send_update(character[update.id]);
+        }
+    }
+}
+
+void *pac_thread(void *arg){
+    while(1){
+        if(new_pac_move == 1){            
+            new_move(all_pac, 'P');            
+            new_pac_move = 0;
+        }
+    }
+}
+
+void *monster_thread(void *arg){
+    while(1){
+        if(new_monster_move == 1){            
+            new_move(all_monster, 'M');            
+            new_monster_move = 0;
         }
     }
 }
