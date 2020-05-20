@@ -23,7 +23,9 @@ board_struct **board;        //matrix with positions occupied by pacmans, monste
 int client_sockets[MAX_CLIENT][2];     //socket for every client; [0] for socket, [1] for client it corresponds
 char_data all_pac[MAX_CLIENT];
 char_data all_monster[MAX_CLIENT];
+char_data update;
 int occupied_places;
+struct timespec time_of_new_play;
 pthread_mutex_t mux_interactions;
 pthread_mutex_t mux_sdl;
 
@@ -170,24 +172,16 @@ void *connect_client(void *arg){
 void *client(void *arg){
     int *sock = (int*)arg;
     int ret;
-    int moved = 0;
-    char_data update;
     char_data previous;
-    struct timespec time_of_new_play;
-    struct timespec time_of_pac_play;
-    struct timespec time_of_monster_play;
-    time_of_monster_play.tv_sec = 0;
-    time_of_pac_play.tv_sec = 0;
     printf("New client thread created\n");
     
     player_data(sock, previous);
         
     while(1){    
-        alarm(5);
-        signal(SIGALRM ,inactivity_jump);
+       // alarm(5);
+       // signal(SIGALRM ,inactivity_jump);
         ret = recv(sock[0], &update, sizeof(char_data), 0);
         clock_gettime(CLOCK_MONOTONIC, &time_of_new_play); 
-        moved = 1;
         if(ret == 0){              
             disconnect_player(update.id);
             printf("Client disconnected \n");
@@ -196,49 +190,11 @@ void *client(void *arg){
             send_update(all_pac[update.id]);
             break;
         }               
-        char_data previous_pac = all_pac[update.id];                
-        char_data previous_monster = all_monster[update.id];
         if(update.type == PACMAN){            
-            if(valid_movement(update, all_pac)){
-                if(over_speed(time_of_new_play, &time_of_pac_play) == 0){
-                    if(bounce_on_walls(update, all_pac) == 0){          //if it bounces on a wall it won't bounce on a brick
-                        all_pac[update.id] = update;                    //same goes for bounce on brick
-                        bounce_on_brick(update.id, all_pac, previous_pac);                    
-                    }                         
-                    board[previous_pac.pos[1]][previous_pac.pos[0]].type = ' ';
-                    board[previous_pac.pos[1]][previous_pac.pos[0]].id = NOT_CONNECT;
-                    pthread_mutex_lock(&mux_interactions);   
-                    character_interactions(update.id, all_pac, previous_pac, previous_monster);
-                    pthread_mutex_unlock(&mux_interactions);
-                    board[all_pac[update.id].pos[1]][all_pac[update.id].pos[0]].type = 'P';
-                    board[all_pac[update.id].pos[1]][all_pac[update.id].pos[0]].id = update.id;                  
-                    push_update(all_pac[update.id], previous_pac, &mux_sdl);
-                    send_update(all_pac[update.id]);                
-                }
-            }            
+            new_move(all_pac);
         }
         else if(update.type == MONSTER){            
-            if(valid_movement(update, all_monster)){                                
-                if(over_speed(time_of_new_play, &time_of_monster_play) == 0){                
-                    if(bounce_on_walls(update, all_monster) == 0){
-                        all_monster[update.id] = update;    
-                        bounce_on_brick(update.id, all_monster, previous_monster);                    
-                    }
-                    board[previous_monster.pos[1]][previous_monster.pos[0]].type = ' ';
-                    board[previous_monster.pos[1]][previous_monster.pos[0]].id = NOT_CONNECT;
-                    pthread_mutex_lock(&mux_interactions);
-                    character_interactions(update.id, all_monster, previous_pac, previous_monster);
-                    pthread_mutex_unlock(&mux_interactions); 
-                    board[all_monster[update.id].pos[1]][all_monster[update.id].pos[0]].type = 'M';
-                    board[all_monster[update.id].pos[1]][all_monster[update.id].pos[0]].id = update.id;   
-                    push_update(all_monster[update.id], previous_monster, &mux_sdl);
-                    send_update(all_monster[update.id]);                
-                }
-                else{
-                    all_monster[update.id].state = JUST_UPDATE_VAR;
-                    send_update(all_monster[update.id]);
-                }
-            }
+            new_move(all_monster);
         }        
    
       /*  for(int i = 0; i < dimensions[1]; i++){
@@ -406,19 +362,19 @@ void bounce_on_brick(int id, char_data character[MAX_CLIENT], char_data previous
     }
 }
 
-int character_interactions(int id, char_data character[MAX_CLIENT], char_data previous_pac, char_data previous_monster){
+int character_interactions(int id, char_data character[MAX_CLIENT], char_data previous){
     int occupant_id;   
     if(character[id].type == PACMAN){
         if(board[character[id].pos[1]][character[id].pos[0]].id == id){    //if it's the monster of the same player
             printf("position occupied by your monster\n");
-            character[id] = previous_pac;
+            character[id] = previous;
             change_positions(&character[id], 'P', &all_monster[id], 'M', id);                      
             return(1);
         }
         else if(board[character[id].pos[1]][character[id].pos[0]].type == 'P' || board[character[id].pos[1]][character[id].pos[0]].type == 'S'){   //if it's another pacman(super or not)
             occupant_id = board[character[id].pos[1]][character[id].pos[0]].id;
             printf("position occupied by pacman of player %d\n", occupant_id);
-            character[id] = previous_pac;
+            character[id] = previous;
             change_positions(&character[id], 'P', &all_pac[occupant_id], 'P', occupant_id);
             return(1);
         }
@@ -431,14 +387,14 @@ int character_interactions(int id, char_data character[MAX_CLIENT], char_data pr
     else if(character[id].type == MONSTER){
         if(board[character[id].pos[1]][character[id].pos[0]].id == id){    //if it's the pacman of the same player
             printf("position occupied\n");
-            character[id] = previous_monster;
+            character[id] = previous;
             change_positions(&character[id], 'M', &all_pac[id], 'P', id);                    
             return(1);
         }
         else if(board[character[id].pos[1]][character[id].pos[0]].type == 'M'){      //if it's a monster from another player
             occupant_id = board[character[id].pos[1]][character[id].pos[0]].id;
             printf("position occupied by monster of player %d\n", occupant_id);
-            character[id] = previous_monster;
+            character[id] = previous;
             change_positions(&character[id], 'M', &all_monster[occupant_id], 'M', occupant_id);
             return(1);
         }
@@ -539,4 +495,31 @@ void inactivity_jump(int id){
     all_monster[0].pos[0] = rand_pos0;
     all_monster[0].pos[1] = rand_pos1;        
     alarm(5);
+}
+
+void new_move(char_data character[MAX_CLIENT]){
+    struct timespec time_of_char_play;
+    time_of_char_play.tv_sec = 0;
+    char_data previous = character[update.id];                
+    if(valid_movement(update, character)){
+        if(over_speed(time_of_new_play, &time_of_char_play) == 0){
+            if(bounce_on_walls(update, character) == 0){          //if it bounces on a wall it won't bounce on a brick
+                character[update.id] = update;                    //same goes for bounce on brick
+                bounce_on_brick(update.id, character, previous);                    
+            }                         
+            board[previous.pos[1]][previous.pos[0]].type = ' ';
+            board[previous.pos[1]][previous.pos[0]].id = NOT_CONNECT;
+            pthread_mutex_lock(&mux_interactions);   
+            character_interactions(update.id, character, previous);
+            pthread_mutex_unlock(&mux_interactions);
+            board[character[update.id].pos[1]][character[update.id].pos[0]].type = 'P';
+            board[character[update.id].pos[1]][character[update.id].pos[0]].id = update.id;                  
+            push_update(character[update.id], previous, &mux_sdl);
+            send_update(character[update.id]);                
+        }
+        else{
+            character[update.id].state = JUST_UPDATE_VAR;
+            send_update(character[update.id]);
+        }
+    }
 }

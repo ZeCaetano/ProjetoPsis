@@ -63,7 +63,7 @@ int bounce_on_walls(char_data update, char_data character[MAX_CLIENT]);
 //implements the bounce on bricks feature
 void bounce_on_brick(int id, char_data character[MAX_CLIENT], char_data previous);
 //implements all the interactions between characters
-int character_interactions(int id, char_data character[MAX_CLIENT], char_data previous_pac, char_data previous_monster);
+int character_interactions(int id, char_data character[MAX_CLIENT], char_data previous);
 //changes the position between two characters
 void change_positions(char_data *pos_1, char type_1, char_data *pos_2, char type_2, int occupant_id);
 // creates random postition for pacman after being eaten
@@ -72,6 +72,8 @@ void eat(char_data *eaten, char eaten_type, int moving_type);
 int over_speed(struct timespec time_of_play, struct timespec *char_play);
 //implements inactivity jump
 void inactivity_jump(int id);
+//analizes and updates the new move
+void new_move(char_data character[MAX_CLIENT]);
 
 
 /*___________________________________Player Specific Funtions_______________________________________________*/
