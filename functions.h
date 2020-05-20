@@ -70,6 +70,8 @@ void change_positions(char_data *pos_1, char type_1, char_data *pos_2, char type
 void eat(char_data *eaten, char eaten_type, int moving_type);
 //handles the speed limit on the characters
 int over_speed(struct timespec time_of_play, struct timespec *char_play);
+//implements inactivity jump
+void inactivity_jump(int id);
 
 
 /*___________________________________Player Specific Funtions_______________________________________________*/

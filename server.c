@@ -8,6 +8,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <string.h>
+#include <signal.h>
 #include "time.h"
 
 #include "UI_library.h"
@@ -169,6 +170,7 @@ void *connect_client(void *arg){
 void *client(void *arg){
     int *sock = (int*)arg;
     int ret;
+    int moved = 0;
     char_data update;
     char_data previous;
     struct timespec time_of_new_play;
@@ -181,8 +183,11 @@ void *client(void *arg){
     player_data(sock, previous);
         
     while(1){    
+        alarm(5);
+        signal(SIGALRM ,inactivity_jump);
         ret = recv(sock[0], &update, sizeof(char_data), 0);
         clock_gettime(CLOCK_MONOTONIC, &time_of_new_play); 
+        moved = 1;
         if(ret == 0){              
             disconnect_player(update.id);
             printf("Client disconnected \n");
@@ -488,12 +493,12 @@ void eat(char_data *eaten, char eaten_type, int moving_type){
 
 int over_speed(struct timespec time_of_play, struct timespec *char_play){
     long int delta = 0;
-    printf("seconds time diference %ld\n", (time_of_play.tv_sec - char_play->tv_sec));
+   // printf("seconds time diference %ld\n", (time_of_play.tv_sec - char_play->tv_sec));
     delta = time_of_play.tv_nsec - char_play->tv_nsec;
     
-    if(((time_of_play.tv_sec - char_play->tv_sec) == 0)){
+    if(((time_of_play.tv_sec - char_play->tv_sec) == 0)){      //if it's the same second, just need to subtract the nanoseconds
         printf("same second\n");
-        printf("nanoseconds time difference%ld\n", delta);
+        //printf("nanoseconds time difference%ld\n", delta);
         if(delta < SPEED){
             return(1);
         }
@@ -502,12 +507,12 @@ int over_speed(struct timespec time_of_play, struct timespec *char_play){
             return(0);
         }
     }
-    else if((time_of_play.tv_sec - char_play->tv_sec) == 1){
-        printf("next second\n");
+    else if((time_of_play.tv_sec - char_play->tv_sec) == 1){    //if it's the next second, nanoseconds might be lower,
+        printf("next second\n");                                    //so the sub will be negative, and it's needed to convert to actual nanoseconds passed    
         if(delta < 0){
-            delta = (999999999 + delta) + 1;
+            delta = 1000000000 + delta;
         }
-        printf("nanoseconds time difference%ld\n", delta);
+        //printf("nanoseconds time difference%ld\n", delta);
         if(delta < SPEED){
             return(1);
         }
@@ -521,4 +526,17 @@ int over_speed(struct timespec time_of_play, struct timespec *char_play){
         *char_play = time_of_play;
         return(0);
     }       
+}
+
+void inactivity_jump(int id){
+    int rand_pos0;
+    int rand_pos1;
+    printf("too long inactive\n");
+    do{
+        rand_pos0 = rand()%dimensions[0];
+        rand_pos1 = rand()%dimensions[1];
+    }while(board[rand_pos1][rand_pos0].type != ' ');
+    all_monster[0].pos[0] = rand_pos0;
+    all_monster[0].pos[1] = rand_pos1;        
+    alarm(5);
 }
