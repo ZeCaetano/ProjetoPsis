@@ -148,21 +148,31 @@ void *update_thread(void *arg){
         }
         else if(update.state == ENDGAME){
             push_update(update, previous, &mux_sdl);
-        }
-        else if(update.state == JUST_UPDATE_VAR){
-            local_monster = update;
         }  
         else if(update.type == PACMAN){
-            previous = all_pac[update.id];
-            all_pac[update.id] = update;
-            local_pac = all_pac[local_id];
-            push_update(all_pac[update.id], previous, &mux_sdl);
+            if(update.state == JUST_UPDATE_VAR){
+                local_pac = update;
+                local_pac.state = CONNECT;
+            }
+            else{
+                previous = all_pac[update.id];
+                all_pac[update.id] = update;
+                local_pac = all_pac[local_id];
+                push_update(all_pac[update.id], previous, &mux_sdl);
+            }
+                
         }
         else if(update.type ==  MONSTER){
-            previous = all_monster[update.id];
-            all_monster[update.id] = update;
-            local_monster = all_monster[local_id];
-            push_update(all_monster[update.id], previous, &mux_sdl);
+            if(update.state == JUST_UPDATE_VAR){
+                local_monster = update;
+                local_monster.state = CONNECT;
+            }
+            else{
+                previous = all_monster[update.id];
+                all_monster[update.id] = update;
+                local_monster = all_monster[local_id];
+                push_update(all_monster[update.id], previous, &mux_sdl);
+            }
         }   
         printf("x%d y%d \tid %d type %d\n", update.pos[0], update.pos[1], update.id, update.type);             
     }
