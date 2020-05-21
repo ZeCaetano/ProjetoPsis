@@ -137,6 +137,7 @@ void *update_thread(void *arg){
     int *sock_fd = arg;    
     char_data update;    
     char_data previous;
+    int i = 0;
     printf("update_thread\n");
     while(1){
         if(recv(*sock_fd, &update, sizeof(char_data), 0) == 0){
@@ -150,33 +151,44 @@ void *update_thread(void *arg){
             push_update(update, previous, &mux_sdl);
         }  
         else if(update.type == PACMAN){
+            previous = all_pac[update.id];
+            all_pac[update.id] = update;
+            local_pac = all_pac[local_id];
             if(update.state == JUST_UPDATE_VAR){
-                local_pac = update;
                 local_pac.state = CONNECT;
             }
             else{
-                previous = all_pac[update.id];
-                all_pac[update.id] = update;
-                local_pac = all_pac[local_id];
                 push_update(all_pac[update.id], previous, &mux_sdl);
             }
                 
         }
         else if(update.type ==  MONSTER){
-            if(update.state == JUST_UPDATE_VAR){
-                local_monster = update;
+            previous = all_monster[update.id];
+            all_monster[update.id] = update;
+            local_monster = all_monster[local_id];
+            if(update.state == JUST_UPDATE_VAR){            
                 local_monster.state = CONNECT;
             }
             else{
-                previous = all_monster[update.id];
-                all_monster[update.id] = update;
-                local_monster = all_monster[local_id];
                 push_update(all_monster[update.id], previous, &mux_sdl);
             }
         }
         else if(update.type == FRUIT){
+            if(update.id == local_id || (update.id - local_id) == 1){
+                printf("add fruit to pacman\n");                
+                all_pac[local_id].fruits[i][0] = update.pos[0];
+                all_pac[local_id].fruits[i][1] = update.pos[1];
+                local_pac = all_pac[local_id];
+                i++;
+                if(i == 3)                                //the player will always receive two fruits associated at
+                    i = 0;
+            }
             push_update(update, previous, &mux_sdl);
-        }   
+            
+        } 
+        for(int i = 0; i < 2; i++){
+            printf("fruits position %d %d\n", local_pac.fruits[i][0], local_pac.fruits[i][1]);
+        }  
         printf("x%d y%d \tid %d type %d\n", update.pos[0], update.pos[1], update.id, update.type);             
     }
 }   

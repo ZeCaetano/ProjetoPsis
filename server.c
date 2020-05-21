@@ -142,7 +142,7 @@ void *connect_client(void *arg){
         exit(-1);
     }
 
-    pthread_create(&fruits_thread_id, NULL, fruits_thread, NULL);
+    pthread_create(&fruits_thread_id, NULL, fruits_thread, all_pac);
 
 
     server_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -176,7 +176,6 @@ void *connect_client(void *arg){
         pthread_create(&client_thread_id, NULL, client, (void *)client_sockets[client_id]);
         client_id ++;
         n_players ++;
-        //send fifo id to fruit thread
     }
     pthread_exit(NULL);
 }
@@ -203,16 +202,20 @@ void *client(void *arg){
     printf("New client thread created\n");
     
     player_data(sock, previous);
-        
+
     while(1){           
         ret = recv(sock[0], &update, sizeof(char_data), 0);
        /* inactive = 0;
         alarm(INACTIVITY); */                 //reset counter every new move
         clock_gettime(CLOCK_MONOTONIC, &time_of_new_play); 
+        for(int i = 0; i < 2; i++){
+            printf("fruits position %d %d\n", update.fruits[i][0], update.fruits[i][1]);
+        }
         if(ret == 0){              
             disconnect_player(update.id);
             printf("Client disconnected \n");
             update.state = DISCONNECT;
+            printf("fruits position %d %d\n", all_pac[update.id].fruits[0][0], all_pac[update.id].fruits[0][1]);
             push_update(update, previous, &mux_sdl);
             send_update(all_pac[update.id]);
             break;
@@ -266,8 +269,10 @@ void disconnect_player(int id){
     board[all_pac[id].pos[1]][all_pac[id].pos[0]].id = DISCONNECT;
     board[all_monster[id].pos[1]][all_monster[id].pos[0]].type = ' ';
     board[all_monster[id].pos[1]][all_monster[id].pos[0]].id = DISCONNECT;
+    board[all_pac[id].fruits[0][1]][all_pac[id].fruits[0][0]].type = ' ';
+    board[all_pac[id].fruits[1][1]][all_pac[id].fruits[1][0]].type = ' ';
+    board[all_pac[id].fruits[1][1]][all_pac[id].fruits[1][0]].id = DISCONNECT;
     client_sockets[id][1] = DISCONNECT;
-    n_players--;
 }                      
 
 
@@ -292,10 +297,10 @@ void player_data(int *sock, char_data previous){
     init_character(&previous, 0, 0, 0, 0, 0, 0);
     for(int i = 0; i < dimensions[1]; i++){
         send(sock[0], board[i], (sizeof(board_struct)*dimensions[0]), 0);
-        for(int j = 0; j < dimensions[0]; j++){
+     /*   for(int j = 0; j < dimensions[0]; j++){
            printf("%c", board[i][j].type);
         }
-        printf("\n");
+        printf("\n");*/
     }
 
     for(int i = 0; i < 2; i++){
@@ -315,13 +320,12 @@ void player_data(int *sock, char_data previous){
             push_update(all_monster[sock[1]], previous, &mux_sdl);            //paints starting positions on server
         }                
     }
-    for(int i = 0; i < MAX_CLIENT; i++){
-        printf("x%d y%d \tid %d type %d\t state %d\n", all_monster[i].pos[0], all_monster[i].pos[1], all_monster[i].id, all_monster[i].type, all_monster[i].state);  
-    }
+
     send(sock[0], all_pac, (sizeof(char_data) * MAX_CLIENT), 0);       //sends to the client all other players connected
     send(sock[0], all_monster, (sizeof(char_data) * MAX_CLIENT), 0);
     send_update(all_pac[sock[1]]);
     send_update(all_monster[sock[1]]);  //sends to all clients the newly connected player
+    write(fruit_pipe[1], &sock[1], sizeof(int));
 }
 
 int bounce_on_walls(char_data update, char_data character[MAX_CLIENT]){
@@ -577,23 +581,27 @@ void *fruits_thread(void *arg){
     init_character(&fruit, FRUIT, 0, 0, 0, 0, 0);
     while(1){
         if(n_players > n_players_aux){      //new player connected
-          //  printf("%ld\n", read(fruit_pipe[0], &id, sizeof(int)));
-            if(n_players > 1){
-                n_fruits = n_fruits + 2;        //(n_players - 1)*2 means that for every new player, there's two more fruits
-                for(int i = 0; i < 2; i++){
-                    create_rand_position(rand_pos);
-                    board[rand_pos[1]][rand_pos[0]].type = 'F';
-                    board[rand_pos[1]][rand_pos[0]].id = id;
-                    fruit.pos[0] = rand_pos[0];
-                    fruit.pos[1] = rand_pos[1];
-                    fruit.type = FRUIT;
-                    all_pac[id].fruits[i][0] = rand_pos[0];
-                    all_pac[id].fruits[i][1] = rand_pos[1];
-                    push_update(fruit, fruit, &mux_sdl);                    
-                    send_update(fruit);
+            if(read(fruit_pipe[0], &id, sizeof(int)) != -1){
+                printf("id read %d\n", id);
+                if(n_players > 1){
+                    n_fruits = n_fruits + 2;        //(n_players - 1)*2 means that for every new player, there's two more fruits
+                    for(int i = 0; i < 2; i++){
+                        create_rand_position(rand_pos);
+                        board[rand_pos[1]][rand_pos[0]].type = 'F';
+                        board[rand_pos[1]][rand_pos[0]].id = id;
+                        fruit.pos[0] = rand_pos[0];
+                        fruit.pos[1] = rand_pos[1];
+                        fruit.type = FRUIT;
+                        fruit.id = id;
+                        all_pac[id].fruits[i][0] = rand_pos[0];
+                        all_pac[id].fruits[i][1] = rand_pos[1];                        
+                        push_update(fruit, fruit, &mux_sdl);                    
+                        send_update(fruit);
+                    }
                 }
             }
             n_players_aux = n_players;
         }
+        usleep(100000);
     }
 }

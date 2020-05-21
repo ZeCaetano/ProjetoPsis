@@ -82,6 +82,8 @@ void new_move(char_data character[MAX_CLIENT], char type, char_data update, stru
 void create_rand_position(int *rand_pos);
 //thread function that adds and clears the fruits on the board
 void *fruits_thread(void *arg);
+//clears the two fruits associated with the client disconecting
+void clear_fruits(char_data *update);
 
 
 /*___________________________________Player Specific Funtions_______________________________________________*/
