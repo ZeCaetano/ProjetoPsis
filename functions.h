@@ -7,14 +7,16 @@
 #define MAX_CLIENT 10
 #define PACMAN 0
 #define MONSTER 1
+#define FRUIT 2
 #define NOT_CONNECT -1
-#define CONNECT -123
-#define DISCONNECT -111
-#define ENDGAME -333
-#define KICK -555
-#define CHANGE -43
-#define JUST_UPDATE_VAR -1000
-#define SPEED 500000000   //minimum nanoseconds allowed between moves
+#define CONNECT -2
+#define DISCONNECT -3
+#define ENDGAME -4
+#define KICK -5
+#define CHANGE -6
+#define JUST_UPDATE_VAR -7
+#define SPEED 000000000   //minimum nanoseconds allowed between moves
+#define INACTIVITY 1
 #define WRITE 1
 #define READ 0
 
@@ -24,6 +26,7 @@ typedef struct char_data{   //character data
     int type;               //pacman or monster
     int id;                 //id given by server
     int state;              //not connected, connected, disconected
+    int fruits[2][2];       //associate every two new fruits with each client      
 } char_data;
 
 typedef struct board_struct{
@@ -73,12 +76,19 @@ void eat(char_data *eaten, char eaten_type, int moving_type);
 //handles the speed limit on the characters
 int over_speed(struct timespec time_of_play, struct timespec *char_play);
 //implements inactivity jump
-void inactivity_jump(int id);
-//analizes and updates the new move
-void new_move(char_data character[MAX_CLIENT], char type);
 //thread for pacman and monster movements
 void *pac_thread(void *);
 void *monster_thread(void *);
+void inactivity_jump(char_data character);
+void reset_alarm(int sign);
+//all the functions each move has to go trough
+void new_move(char_data character[MAX_CLIENT], char type, char_data update, struct timespec time_of_new_play, struct timespec *time_of_char_play);
+//creates a random starting postition that's not occupied by another character
+void create_rand_position(int *rand_pos);
+//thread function that adds and clears the fruits on the board
+void *fruits_thread(void *arg);
+//clears the two fruits associated with the client disconecting
+void clear_fruits(char_data *update);
 
 
 /*___________________________________Player Specific Funtions_______________________________________________*/
