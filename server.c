@@ -25,11 +25,11 @@ char_data all_pac[MAX_CLIENT];
 char_data all_monster[MAX_CLIENT];
 char_data update;
 int occupied_places;
-int new_pac_move;
-int new_monster_move;
 struct timespec time_of_new_play;
 pthread_mutex_t mux_interactions;
 pthread_mutex_t mux_sdl;
+int new_pac_move_pipe[2];
+int new_monster_move_pipe[2];
 
 int main(){
     pthread_t connect_thread;
@@ -177,8 +177,16 @@ void *client(void *arg){
     pthread_t pac_thread_id;
     pthread_t monster_thread_id;
     char_data previous;
+    int move = 0;
     printf("New client thread created\n");
-    
+
+    if(pipe(new_pac_move_pipe) != 0){
+        exit(-1);
+    }
+    if(pipe(new_monster_move_pipe) != 0){
+        exit(-1);
+    }
+
     player_data(sock, previous);
 
     pthread_create(&pac_thread_id, NULL, pac_thread, NULL);
@@ -196,13 +204,19 @@ void *client(void *arg){
             push_update(update, previous, &mux_sdl);
             send_update(all_pac[update.id]);
             break;
-        }               
-        if(update.type == PACMAN){ 
-            new_pac_move = 1;           
         }
-        else if(update.type == MONSTER){            
-            new_monster_move = 1;
-        }        
+        if(update.type == PACMAN){
+            move = 1;
+            write(new_pac_move_pipe[WRITE], &move, sizeof(int));           
+            move = 0;
+        }
+        else if(update.type == MONSTER){
+            move = 1;
+            write(new_monster_move_pipe[WRITE], &move, sizeof(int));           
+            move = 0;                        
+        }               
+        
+        
    
       /*  for(int i = 0; i < dimensions[1]; i++){
             for(int j = 0; j < dimensions[0]; j++){
@@ -532,19 +546,19 @@ void new_move(char_data character[MAX_CLIENT], char type){
 }
 
 void *pac_thread(void *arg){
+    int move;
     while(1){
-        if(new_pac_move == 1){            
+        if(read(new_pac_move_pipe[READ], &move, sizeof(int)) != -1){        
             new_move(all_pac, 'P');            
-            new_pac_move = 0;
-        }
+        }  
     }
 }
 
 void *monster_thread(void *arg){
+    int move;
     while(1){
-        if(new_monster_move == 1){            
+        if(read(new_monster_move_pipe[READ], &move, sizeof(int)) != -1){        
             new_move(all_monster, 'M');            
-            new_monster_move = 0;
-        }
+        }  
     }
 }

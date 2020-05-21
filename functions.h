@@ -15,6 +15,8 @@
 #define CHANGE -43
 #define JUST_UPDATE_VAR -1000
 #define SPEED 500000000   //minimum nanoseconds allowed between moves
+#define WRITE 1
+#define READ 0
 
 typedef struct char_data{   //character data
     int pos[2];             //position
