@@ -3,6 +3,7 @@
 #include "functions.h"
 #include "UI_library.h"
 #include <pthread.h>
+#include "time.h"
 
 
 Uint32 Event_Update;
@@ -77,5 +78,14 @@ void paint_update(char_data *data, char_data *previous, char_data all_pac[MAX_CL
     else if(data->type == MONSTER){
         clear_place(previous->pos[0], previous->pos[1]);
         paint_monster(all_monster[id].pos[0], all_monster[id].pos[1], all_monster[id].color[0], all_monster[id].color[1], all_monster[id].color[2]);
+    }
+    else if(data->type == FRUIT){
+        int rand_n = rand() % 2;
+        if(rand_n == 0){
+            paint_cherry(data->pos[0], data->pos[1]);
+        }
+        else if(rand_n == 1){
+            paint_lemon(data->pos[0], data->pos[1]);
+        }
     }
 }

@@ -7,6 +7,7 @@
 #define MAX_CLIENT 10
 #define PACMAN 0
 #define MONSTER 1
+#define FRUIT 2
 #define NOT_CONNECT -1
 #define CONNECT -2
 #define DISCONNECT -3
@@ -14,7 +15,7 @@
 #define KICK -5
 #define CHANGE -6
 #define JUST_UPDATE_VAR -7
-#define SPEED 500000000   //minimum nanoseconds allowed between moves
+#define SPEED 000000000   //minimum nanoseconds allowed between moves
 #define INACTIVITY 1
 
 typedef struct char_data{   //character data
@@ -23,6 +24,7 @@ typedef struct char_data{   //character data
     int type;               //pacman or monster
     int id;                 //id given by server
     int state;              //not connected, connected, disconected
+    int fruits[2][2];       //associate every two new fruits with each client      
 } char_data;
 
 typedef struct board_struct{
@@ -76,6 +78,10 @@ void inactivity_jump(char_data character);
 void reset_alarm(int sign);
 //all the functions each move has to go trough
 void new_move(char_data character[MAX_CLIENT], char type, char_data update, struct timespec time_of_new_play, struct timespec *time_of_char_play);
+//creates a random starting postition that's not occupied by another character
+void create_rand_position(int *rand_pos);
+//thread function that adds and clears the fruits on the board
+void *fruits_thread(void *arg);
 
 
 /*___________________________________Player Specific Funtions_______________________________________________*/
