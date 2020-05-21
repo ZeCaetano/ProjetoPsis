@@ -186,16 +186,14 @@ void *client(void *arg){
     reset_alarm(0);
     inactive = 0;
 
-    while(1){
-        printf("alarm %d\n", inactive[0]);
-        usleep(100000);
-    }
     printf("New client thread created\n");
     
     player_data(sock, previous);
         
     while(1){           
         ret = recv(sock[0], &update, sizeof(char_data), 0);
+       /* inactive = 0;
+        alarm(INACTIVITY); */                 //reset counter every new move
         printf("ret %d\n", ret);
         clock_gettime(CLOCK_MONOTONIC, &time_of_new_play); 
         if(ret == 0){              
@@ -210,7 +208,7 @@ void *client(void *arg){
             new_move(all_pac, 'P', update, time_of_new_play, &time_of_pac_play);          
         }
         else if(update.type == MONSTER){     
-            alarm(INACTIVITY);  //reset counter every new move
+            
             new_move(all_monster, 'M', update, time_of_new_play, &time_of_monster_play);
         }        
    
