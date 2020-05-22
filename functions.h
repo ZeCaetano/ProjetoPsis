@@ -8,6 +8,7 @@
 #define PACMAN 0
 #define MONSTER 1
 #define FRUIT 2
+#define POWER_PACMAN 3
 #define NOT_CONNECT -1
 #define CONNECT -2
 #define DISCONNECT -3
@@ -15,6 +16,7 @@
 #define KICK -5
 #define CHANGE -6
 #define JUST_UPDATE_VAR -7
+#define ERASE_FRUIT -8
 #define SPEED 000000000   //minimum nanoseconds allowed between moves
 #define INACTIVITY 1
 #define WRITE 1
@@ -89,6 +91,8 @@ void create_rand_position(int *rand_pos);
 void *fruits_thread(void *arg);
 //clears the two fruits associated with the client disconecting
 void clear_fruits(char_data *update);
+//creates the new random postition for the fruit after being eaten
+void eat_fruit();
 
 
 /*___________________________________Player Specific Funtions_______________________________________________*/

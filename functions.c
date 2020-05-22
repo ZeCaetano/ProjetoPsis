@@ -61,16 +61,7 @@ void paint_update(char_data *data, char_data *previous, char_data all_pac[MAX_CL
     int id = data->id;
     if(data->state == DISCONNECT){
         clear_place(all_pac[id].pos[0], all_pac[id].pos[1]);
-        clear_place(all_monster[id].pos[0], all_monster[id].pos[1]);
-        if(all_pac[id].fruits[0][0] == -1){   //no fruit associated
-            clear_place(all_pac[id + 1].fruits[0][0], all_pac[id + 1].fruits[0][1]);
-            clear_place(all_pac[id + 1].fruits[1][0], all_pac[id + 1].fruits[1][1]);
-        }
-        else{
-            clear_place(all_pac[id].fruits[0][0], all_pac[id].fruits[0][1]);
-            clear_place(all_pac[id].fruits[1][0], all_pac[id].fruits[1][1]);
-        }                    
-        
+        clear_place(all_monster[id].pos[0], all_monster[id].pos[1]);                
     }
     else if(data->state == CHANGE){
         if(data->type == PACMAN){
@@ -89,6 +80,15 @@ void paint_update(char_data *data, char_data *previous, char_data all_pac[MAX_CL
         paint_monster(all_monster[id].pos[0], all_monster[id].pos[1], all_monster[id].color[0], all_monster[id].color[1], all_monster[id].color[2]);
     }
     else if(data->type == FRUIT){
-        paint_lemon(data->pos[0], data->pos[1]);
+        if(data->state == ERASE_FRUIT){
+            clear_place(data->pos[0], data->pos[1]);
+        }
+        else{
+            paint_lemon(data->pos[0], data->pos[1]);
+        }
+    }
+    else if(data->type == POWER_PACMAN){
+        clear_place(previous->pos[0], previous->pos[1]);                 
+        paint_powerpacman(all_pac[id].pos[0], all_pac[id].pos[1], all_pac[id].color[0], all_pac[id].color[1], all_pac[id].color[2]);
     }
 }

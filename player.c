@@ -150,7 +150,7 @@ void *update_thread(void *arg){
         else if(update.state == ENDGAME){
             push_update(update, previous, &mux_sdl);
         }  
-        else if(update.type == PACMAN){
+        else if(update.type == PACMAN || update.type == POWER_PACMAN){
             previous = all_pac[update.id];
             all_pac[update.id] = update;
             local_pac = all_pac[local_id];
@@ -174,15 +174,6 @@ void *update_thread(void *arg){
             }
         }
         else if(update.type == FRUIT){
-            if(update.id == local_id || (update.id - local_id) == 1){
-                printf("add fruit to pacman\n");                
-                all_pac[local_id].fruits[i][0] = update.pos[0];
-                all_pac[local_id].fruits[i][1] = update.pos[1];
-                local_pac = all_pac[local_id];
-                i++;
-                if(i == 3)                                //the player will always receive two fruits associated at
-                    i = 0;
-            }
             push_update(update, previous, &mux_sdl);
             
         } 
@@ -231,6 +222,9 @@ void initial_paint(){
         for(int j = 0; j < dimensions[0]; j++){
             if(board[i][j].type == 'B'){
                 paint_brick(j, i);
+            }
+            if(board[i][j].type == 'F'){
+                paint_lemon(j, i);
             }
         }
     }

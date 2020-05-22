@@ -25,7 +25,6 @@ char_data all_pac[MAX_CLIENT];
 char_data all_monster[MAX_CLIENT];
 char_data update;
 int occupied_places;
-struct timespec time_of_new_play;
 pthread_mutex_t mux_interactions;
 pthread_mutex_t mux_sdl;
 int new_pac_move_pipe[2];
@@ -33,14 +32,15 @@ int new_monster_move_pipe[2];
 int n_players;
 int inactive;
 int fruit_pipe[2];
-
+int fruits_pos[(MAX_CLIENT-1)*2][2];
 
 int main(){
     pthread_t connect_thread;
     srand(time(NULL));
     int done = 0;
     SDL_Event event;
-    occupied_places = 0; n_players = 0;
+    occupied_places = 0; 
+    n_players = 0;
 
     for(int i = 0; i < MAX_CLIENT; i++){
         client_sockets[i][1] = DISCONNECT;
@@ -190,14 +190,9 @@ void *client(void *arg){
     int ret;
     pthread_t pac_thread_id;
     pthread_t monster_thread_id;
-    int move = 0;
     char_data update;
     char_data previous;
     struct timespec time_of_new_play;
-    struct timespec time_of_pac_play;
-    struct timespec time_of_monster_play;
-    time_of_pac_play.tv_sec = 0;
-    time_of_monster_play.tv_sec = 0;
     struct sigaction new;
     new.sa_handler = reset_alarm;
     sigemptyset(&new.sa_mask);
@@ -227,9 +222,9 @@ void *client(void *arg){
        /* inactive = 0;
         alarm(INACTIVITY); */                 //reset counter every new move
         clock_gettime(CLOCK_MONOTONIC, &time_of_new_play); 
-        for(int i = 0; i < 2; i++){
+       /* for(int i = 0; i < 2; i++){
             printf("fruits position %d %d\n", update.fruits[i][0], update.fruits[i][1]);
-        }
+        }*/
         if(ret == 0){              
             disconnect_player(update.id);
             printf("Client disconnected \n");
@@ -239,25 +234,23 @@ void *client(void *arg){
             send_update(all_pac[update.id]);
             break;
         }
-        if(update.type == PACMAN){
-            move = 1;
-            write(new_pac_move_pipe[WRITE], &move, sizeof(int));           
-            move = 0;
+        if(update.type == PACMAN || update.type == POWER_PACMAN){
+            write(new_pac_move_pipe[WRITE], &update, sizeof(char_data));   
+            write(new_pac_move_pipe[WRITE], &time_of_new_play, sizeof(struct timespec));                       
         }
         else if(update.type == MONSTER){
-            move = 1;
-            write(new_monster_move_pipe[WRITE], &move, sizeof(int));           
-            move = 0;                        
+            write(new_monster_move_pipe[WRITE], &update, sizeof(char_data));   
+            write(new_monster_move_pipe[WRITE], &time_of_new_play, sizeof(struct timespec));
         }               
         
         
    
-      /*  for(int i = 0; i < dimensions[1]; i++){
+        for(int i = 0; i < dimensions[1]; i++){
             for(int j = 0; j < dimensions[0]; j++){
                 printf("%c.%d", board[i][j].type, board[i][j].id);
             }
             printf("\n");
-        } */         
+        }          
        //printf("x%d y%d \tid %d type %d\n", update.pos[0], update.pos[1], update.id, update.type);
     }
     pthread_exit(NULL);
@@ -293,9 +286,7 @@ void disconnect_player(int id){
     board[all_pac[id].pos[1]][all_pac[id].pos[0]].id = DISCONNECT;
     board[all_monster[id].pos[1]][all_monster[id].pos[0]].type = ' ';
     board[all_monster[id].pos[1]][all_monster[id].pos[0]].id = DISCONNECT;
-    board[all_pac[id].fruits[0][1]][all_pac[id].fruits[0][0]].type = ' ';
-    board[all_pac[id].fruits[1][1]][all_pac[id].fruits[1][0]].type = ' ';
-    board[all_pac[id].fruits[1][1]][all_pac[id].fruits[1][0]].id = DISCONNECT;
+    n_players--;
     client_sockets[id][1] = DISCONNECT;
 }                      
 
@@ -420,8 +411,8 @@ void bounce_on_brick(int id, char_data character[MAX_CLIENT], char_data previous
 
 int character_interactions(int id, char_data character[MAX_CLIENT], char_data previous){
     int occupant_id;   
-    if(character[id].type == PACMAN){
-        if(board[character[id].pos[1]][character[id].pos[0]].id == id){    //if it's the monster of the same player
+    if(character[id].type == PACMAN || character[id].type == POWER_PACMAN){
+        if(board[character[id].pos[1]][character[id].pos[0]].id == id && board[character[id].pos[1]][character[id].pos[0]].type != 'F'){    //if it's the monster of the same player
           //  printf("position occupied by your monster\n");
             character[id] = previous;
             change_positions(&character[id], 'P', &all_monster[id], 'M', id);                      
@@ -435,8 +426,20 @@ int character_interactions(int id, char_data character[MAX_CLIENT], char_data pr
             return(1);
         }
         else if(board[character[id].pos[1]][character[id].pos[0]].type == 'M'){
-            eat(&all_pac[id], 'P', PACMAN);
-            return(1);
+            if(character[id].type == PACMAN){
+                eat(&all_pac[id], 'P', PACMAN);
+                return(1);                
+            }
+            else if(character[id].type == POWER_PACMAN){
+                occupant_id = board[character[id].pos[1]][character[id].pos[0]].id;
+                eat(&all_monster[occupant_id], 'M', POWER_PACMAN);
+                return(1);
+            }
+        }
+        else if(board[character[id].pos[1]][character[id].pos[0]].type == 'F'){
+            character[id].type = POWER_PACMAN;
+            eat_fruit();
+            return(2);
         }
     
     }
@@ -457,6 +460,14 @@ int character_interactions(int id, char_data character[MAX_CLIENT], char_data pr
         else if(board[character[id].pos[1]][character[id].pos[0]].type == 'P'){
             occupant_id = board[character[id].pos[1]][character[id].pos[0]].id;
             eat(&all_pac[occupant_id], 'P', MONSTER);
+            return(1);
+        }
+        else if(board[character[id].pos[1]][character[id].pos[0]].type == 'F'){
+            eat_fruit();
+            return(1);
+        }
+        else if(board[character[id].pos[1]][character[id].pos[0]].type == 'S'){
+            eat(&all_monster[id], 'M', MONSTER);
             return(1);
         }
     }
@@ -564,7 +575,9 @@ void *inactivity_thread(void *arg){
         }
     }
 }
-void new_move(char_data character[MAX_CLIENT], char type, char_data update, struct timespec time_of_new_play, struct timespec *time_of_char_play){
+void new_move(char_data character[MAX_CLIENT], char _type, char_data update, struct timespec time_of_new_play, struct timespec *time_of_char_play){
+    int ret;
+    char type;
     char_data previous = character[update.id];                
     if(valid_movement(update, character)){
         if(over_speed(time_of_new_play, time_of_char_play) == 0){
@@ -575,8 +588,14 @@ void new_move(char_data character[MAX_CLIENT], char type, char_data update, stru
             board[previous.pos[1]][previous.pos[0]].type = ' ';
             board[previous.pos[1]][previous.pos[0]].id = NOT_CONNECT;
             pthread_mutex_lock(&mux_interactions);   
-            character_interactions(update.id, character, previous);
+            ret = character_interactions(update.id, character, previous);
             pthread_mutex_unlock(&mux_interactions);
+            if(ret == 2 && (update.type == PACMAN || update.type == POWER_PACMAN)){
+                type = 'S';
+            }
+            else{
+                type = _type;
+            }
             board[character[update.id].pos[1]][character[update.id].pos[0]].type = type;
             board[character[update.id].pos[1]][character[update.id].pos[0]].id = update.id;                  
             push_update(character[update.id], previous, &mux_sdl);
@@ -601,49 +620,88 @@ void *fruits_thread(void *arg){
     int rand_pos[2];
     int id;
     int n_fruits = 0;
+    int players_disconnected = 0;
     char_data fruit; 
     init_character(&fruit, FRUIT, 0, 0, 0, 0, 0);
     while(1){
         if(n_players > n_players_aux){      //new player connected
             if(read(fruit_pipe[0], &id, sizeof(int)) != -1){
                 printf("id read %d\n", id);
-                if(n_players > 1){
-                    n_fruits = n_fruits + 2;        //(n_players - 1)*2 means that for every new player, there's two more fruits
-                    for(int i = 0; i < 2; i++){
+                if(n_players > 1){       
+                    for(int i = 0; i < 2; i++){             //(n_players - 1)*2 means that for every new player, there's two more fruits
                         create_rand_position(rand_pos);
                         board[rand_pos[1]][rand_pos[0]].type = 'F';
-                        board[rand_pos[1]][rand_pos[0]].id = id;
+                        board[rand_pos[1]][rand_pos[0]].id = n_fruits;
                         fruit.pos[0] = rand_pos[0];
                         fruit.pos[1] = rand_pos[1];
                         fruit.type = FRUIT;
-                        fruit.id = id;
-                        all_pac[id].fruits[i][0] = rand_pos[0];
-                        all_pac[id].fruits[i][1] = rand_pos[1];                        
+                        fruit.state = CONNECT;
+                        fruits_pos[n_fruits][0] = fruit.pos[0];
+                        fruits_pos[n_fruits][1] = fruit.pos[1];
                         push_update(fruit, fruit, &mux_sdl);                    
                         send_update(fruit);
-                    }
+                        n_fruits++; 
+                        if(n_fruits == (MAX_CLIENT - 1)*2){
+                            n_fruits = 0;
+                            players_disconnected = 0;        //if max number of fruits is reached reset the ids of fruits array
+                        }
+                    }                    
+                }
+                for(int i = 0; i < (MAX_CLIENT - 1)*2; i++){
+                    printf("fruits %d %d\n", fruits_pos[i][0], fruits_pos[i][1]);
                 }
             }
             n_players_aux = n_players;
         }
-        usleep(100000);
+        if(n_players < n_players_aux){    //player disconnected
+            for(int i = players_disconnected * 2; i <= players_disconnected * 2 + 1; i++){
+                fruit.pos[0] = fruits_pos[i][0];
+                fruit.pos[1] = fruits_pos[i][1];
+                fruit.type = FRUIT;
+                fruit.state = ERASE_FRUIT;
+                push_update(fruit, fruit, &mux_sdl);
+                send_update(fruit);
+            }
+            players_disconnected++;
+            n_players_aux = n_players;
+        }
+        usleep(1000);
     }
 }
 
 void *pac_thread(void *arg){
-    int move;
+    char_data update;
+    struct timespec time_of_new_play;
+    struct timespec time_of_pac_play;
+    time_of_pac_play.tv_sec = 0;
     while(1){
-        if(read(new_pac_move_pipe[READ], &move, sizeof(int)) != -1){        
-            new_move(all_pac, 'P');            
-        }  
+        if(read(new_pac_move_pipe[READ], &update, sizeof(char_data)) != -1){    
+            read(new_pac_move_pipe[READ], &time_of_new_play, sizeof(struct timespec));    
+            new_move(all_pac, 'P', update, time_of_new_play, &time_of_pac_play);            
+        }
+        usleep(1000);  
     }
 }
 
 void *monster_thread(void *arg){
-    int move;
+    char_data update;
+    struct timespec time_of_new_play;
+    struct timespec time_of_monster_play;
+    time_of_monster_play.tv_sec = 0;
     while(1){
-        if(read(new_monster_move_pipe[READ], &move, sizeof(int)) != -1){        
-            new_move(all_monster, 'M');            
-        }  
+        if(read(new_monster_move_pipe[READ], &update, sizeof(char_data)) != -1){ 
+            read(new_monster_move_pipe[READ], &time_of_new_play, sizeof(struct timespec));       
+            new_move(all_monster, 'M', update, time_of_new_play, &time_of_monster_play);            
+        } 
+        usleep(1000); 
     }
+}
+
+
+void eat_fruit(){
+    char_data fruit;
+    create_rand_position(fruit.pos);
+    board[fruit.pos[1]][fruit.pos[0]].type = 'F';
+    push_update(fruit, fruit, &mux_sdl);
+    send_update(fruit);
 }
