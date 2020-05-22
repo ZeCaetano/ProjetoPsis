@@ -70,6 +70,9 @@ void paint_update(char_data *data, char_data *previous, char_data all_pac[MAX_CL
         else if(data->type == MONSTER){
             paint_monster(all_monster[id].pos[0], all_monster[id].pos[1], all_monster[id].color[0], all_monster[id].color[1], all_monster[id].color[2]);
         }
+        else if(data->type >= POWER_PACMAN){
+            paint_powerpacman(all_pac[id].pos[0], all_pac[id].pos[1], all_pac[id].color[0], all_pac[id].color[1], all_pac[id].color[2]);
+        }
     }           
     else if(data->type == PACMAN){ //pacman   
         clear_place(previous->pos[0], previous->pos[1]);                 
@@ -87,7 +90,7 @@ void paint_update(char_data *data, char_data *previous, char_data all_pac[MAX_CL
             paint_lemon(data->pos[0], data->pos[1]);
         }
     }
-    else if(data->type == POWER_PACMAN){
+    else if(data->type >= POWER_PACMAN){
         clear_place(previous->pos[0], previous->pos[1]);                 
         paint_powerpacman(all_pac[id].pos[0], all_pac[id].pos[1], all_pac[id].color[0], all_pac[id].color[1], all_pac[id].color[2]);
     }

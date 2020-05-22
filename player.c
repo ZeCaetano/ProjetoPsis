@@ -137,7 +137,6 @@ void *update_thread(void *arg){
     int *sock_fd = arg;    
     char_data update;    
     char_data previous;
-    int i = 0;
     printf("update_thread\n");
     while(1){
         if(recv(*sock_fd, &update, sizeof(char_data), 0) == 0){
@@ -150,7 +149,7 @@ void *update_thread(void *arg){
         else if(update.state == ENDGAME){
             push_update(update, previous, &mux_sdl);
         }  
-        else if(update.type == PACMAN || update.type == POWER_PACMAN){
+        else if(update.type == PACMAN || update.type >= POWER_PACMAN){
             previous = all_pac[update.id];
             all_pac[update.id] = update;
             local_pac = all_pac[local_id];
@@ -177,9 +176,6 @@ void *update_thread(void *arg){
             push_update(update, previous, &mux_sdl);
             
         } 
-        for(int i = 0; i < 2; i++){
-            printf("fruits position %d %d\n", local_pac.fruits[i][0], local_pac.fruits[i][1]);
-        }  
         printf("x%d y%d \tid %d type %d\n", update.pos[0], update.pos[1], update.id, update.type);             
     }
 }   
