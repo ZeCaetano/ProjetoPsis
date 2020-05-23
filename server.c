@@ -31,6 +31,7 @@ struct timespec time_of_pac_play[MAX_CLIENT];
 struct timespec time_of_monster_play[MAX_CLIENT];
 int new_pac_move_pipe[MAX_CLIENT][2];
 int new_monster_move_pipe[MAX_CLIENT][2];
+int current_players;
 int n_players;
 int inactive;
 int fruit_pipe[2];
@@ -44,6 +45,7 @@ int main(){
     int done = 0;
     SDL_Event event;
     occupied_places = 0; 
+    current_players = 0;
     n_players = 0;
 
     for(int i = 0; i < MAX_CLIENT; i++){
@@ -280,10 +282,10 @@ void disconnect_player(int id){
     board[all_pac[id].pos[1]][all_pac[id].pos[0]].id = DISCONNECT;
     board[all_monster[id].pos[1]][all_monster[id].pos[0]].type = ' ';
     board[all_monster[id].pos[1]][all_monster[id].pos[0]].id = DISCONNECT;
-    n_players--;
+    current_players--;
     write(fruit_pipe[WRITE], &fruit, sizeof(int));
     client_sockets[id][1] = DISCONNECT;
-    if(n_players == 1){
+    if(current_players == 1){
         for(int i = 0; i < MAX_CLIENT; i++){
             if(all_pac[i].state ==  CONNECT){
                 all_pac[i].eaten_things = 0;
@@ -344,7 +346,9 @@ void player_data(int *sock, char_data previous){
     send_update(all_pac[sock[1]]);
     send_update(all_monster[sock[1]]);  //sends to all clients the newly connected player
     write(fruit_pipe[WRITE], &fruit, sizeof(int));
-    n_players ++;
+    current_players ++;
+    n_players++;
+
 }
 
 int bounce_on_walls(char_data update, char_data character[MAX_CLIENT]){
@@ -611,9 +615,9 @@ void *fruits_thread(void *arg){
     char_data fruit; 
     init_character(&fruit, FRUIT, 0, 0, 0, 0, 0);
     while(1){
-        if(n_players > n_players_aux){      //new player connected
-            if(n_players > 1){   
-                for(int i = 0; i < 2; i++){             //(n_players - 1)*2 means that for every new player, there's two more fruits
+        if(current_players> n_players_aux){      //new player connected
+            if(current_players> 1){   
+                for(int i = 0; i < 2; i++){             //(current_players- 1)*2 means that for every new player, there's two more fruits
                     if(occupied_places < dimensions[0]*dimensions[1]){
                         create_rand_position(rand_pos);
                         board[rand_pos[1]][rand_pos[0]].type = 'F';
@@ -635,9 +639,9 @@ void *fruits_thread(void *arg){
                     }                    
                 }    
             }
-            n_players_aux = n_players;
+            n_players_aux = current_players;
         }
-        if(n_players < n_players_aux){    //player disconnected
+        if(current_players < n_players_aux){    //player disconnected
             for(int i = players_disconnected * 2; i <= players_disconnected * 2 + 1; i++){
                 fruit.pos[0] = fruits_pos[i][0];
                 fruit.pos[1] = fruits_pos[i][1];
@@ -647,7 +651,7 @@ void *fruits_thread(void *arg){
                 send_update(fruit);
             }
             players_disconnected++;
-            n_players_aux = n_players;
+            n_players_aux = current_players;
         }
         read(fruit_pipe[READ], &id, sizeof(int));
         if(id != -1){
