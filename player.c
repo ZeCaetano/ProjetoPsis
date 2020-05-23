@@ -24,6 +24,7 @@ int local_id = 0;
 int dimensions[2];
 board_struct **board;
 pthread_mutex_t mux_sdl;
+char_data score[MAX_CLIENT];
 
 
 int main(int argc, char *argv[]){
@@ -140,7 +141,9 @@ void *update_thread(void *arg){
     printf("update_thread\n");
     while(1){
         if(recv(*sock_fd, &update, sizeof(char_data), 0) == 0){
-            //server closed
+            update.state = ENDGAME;
+            push_update(update, previous, &mux_sdl);
+            pthread_exit(NULL);
         }
         if(update.state == DISCONNECT){  //a client disconected
             all_pac[update.id] = update;
@@ -148,7 +151,15 @@ void *update_thread(void *arg){
         }
         else if(update.state == ENDGAME){
             push_update(update, previous, &mux_sdl);
-        }  
+            pthread_exit(NULL);
+        } 
+        else if(update.state == SCOREBOARD){
+            for(int i = 0; i < MAX_CLIENT; i++){
+                recv(*sock_fd, &score[i], sizeof(char_data), 0);
+            }
+            print_scoreboard();
+            update.type = -100;  //just to skip all the next if conditions
+        } 
         else if(update.type == PACMAN || update.type >= POWER_PACMAN){
             previous = all_pac[update.id];
             all_pac[update.id] = update;
@@ -230,4 +241,14 @@ void initial_paint(){
             paint_monster(all_monster[i].pos[0],all_monster[i].pos[1], all_monster[i].color[0], all_monster[i].color[1], all_monster[i].color[2]);
         }
     }
+}
+
+void print_scoreboard(){
+    printf("\t\tSCOREBOARD\t\t\n");
+    for(int i = 0; i < MAX_CLIENT; i++){
+        if(score[i].state != NOT_CONNECT && score[i].state != DISCONNECT){
+            printf("Player %d score: %d\n", i, score[i].eaten_things);
+        }
+    }
+    printf("\n\n\n\n");
 }

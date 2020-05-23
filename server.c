@@ -65,9 +65,10 @@ int main(){
         init_character(&all_monster[i], MONSTER, i, NOT_CONNECT, 0, 0, 0);
     }
 
+    alarm(SCORE_TIME);
+    signal(SIGALRM, send_scoreboard);
 
-
-   // pthread_join(connect_thread, NULL);    
+   
     create_board_window(dimensions[0], dimensions[1]);
 
     for(int i = 0; i < dimensions[1]; i++){
@@ -282,6 +283,13 @@ void disconnect_player(int id){
     n_players--;
     write(fruit_pipe[WRITE], &fruit, sizeof(int));
     client_sockets[id][1] = DISCONNECT;
+    if(n_players == 1){
+        for(int i = 0; i < MAX_CLIENT; i++){
+            if(all_pac[i].state ==  CONNECT){
+                all_pac[i].eaten_things = 0;
+            }
+        }
+    }
 }                      
 
 
@@ -422,14 +430,16 @@ int character_interactions(int id, char_data character[MAX_CLIENT], char_data pr
             return(1);
         }
         else if(board[character[id].pos[1]][character[id].pos[0]].type == 'M'){
+            occupant_id = board[character[id].pos[1]][character[id].pos[0]].id;
             if(character[id].type == PACMAN){
+                all_pac[occupant_id].eaten_things++;
                 eat(&all_pac[id], 'P', PACMAN);
                 return(1);                
             }
             else if(character[id].type >= POWER_PACMAN){
-                occupant_id = board[character[id].pos[1]][character[id].pos[0]].id;
                 eat(&all_monster[occupant_id], 'M', POWER_PACMAN);
                 character[id].type++;
+                all_pac[id].eaten_things++;
                 if(character[id].type == EAT_2){
                     character[id].type = PACMAN;
                 }
@@ -439,6 +449,7 @@ int character_interactions(int id, char_data character[MAX_CLIENT], char_data pr
         else if(board[character[id].pos[1]][character[id].pos[0]].type == 'F'){
             occupant_id = board[character[id].pos[1]][character[id].pos[0]].id;
             character[id].type = POWER_PACMAN;
+            all_pac[id].eaten_things++;
             write(fruit_pipe[WRITE], &occupant_id, sizeof(int));
             return(2);
         }
@@ -460,15 +471,19 @@ int character_interactions(int id, char_data character[MAX_CLIENT], char_data pr
         }
         else if(board[character[id].pos[1]][character[id].pos[0]].type == 'P'){
             occupant_id = board[character[id].pos[1]][character[id].pos[0]].id;
+            all_pac[id].eaten_things++;
             eat(&all_pac[occupant_id], 'P', MONSTER);
             return(1);
         }
         else if(board[character[id].pos[1]][character[id].pos[0]].type == 'F'){
             occupant_id = board[character[id].pos[1]][character[id].pos[0]].id;
+            all_pac[id].eaten_things++;
             write(fruit_pipe[WRITE], &occupant_id, sizeof(int));
             return(1);
         }
         else if(board[character[id].pos[1]][character[id].pos[0]].type == 'S'){
+            occupant_id = board[character[id].pos[1]][character[id].pos[0]].id;
+            all_pac[occupant_id].eaten_things++;
             eat(&all_monster[id], 'M', MONSTER);
             return(1);
         }        
@@ -597,25 +612,28 @@ void *fruits_thread(void *arg){
     init_character(&fruit, FRUIT, 0, 0, 0, 0, 0);
     while(1){
         if(n_players > n_players_aux){      //new player connected
-            if(n_players > 1){       
+            if(n_players > 1){   
                 for(int i = 0; i < 2; i++){             //(n_players - 1)*2 means that for every new player, there's two more fruits
-                    create_rand_position(rand_pos);
-                    board[rand_pos[1]][rand_pos[0]].type = 'F';
-                    board[rand_pos[1]][rand_pos[0]].id = n_fruits;
-                    fruit.pos[0] = rand_pos[0];
-                    fruit.pos[1] = rand_pos[1];
-                    fruit.type = FRUIT;
-                    fruit.state = CONNECT;
-                    fruits_pos[n_fruits][0] = fruit.pos[0];
-                    fruits_pos[n_fruits][1] = fruit.pos[1];
-                    push_update(fruit, fruit, &mux_sdl);                    
-                    send_update(fruit);
-                    n_fruits++; 
-                    if(n_fruits == (MAX_CLIENT - 1)*2){
-                        n_fruits = 0;
-                        players_disconnected = 0;        //if max number of fruits is reached reset the ids of fruits array
-                    }
-                }                    
+                    if(occupied_places < dimensions[0]*dimensions[1]){
+                        create_rand_position(rand_pos);
+                        board[rand_pos[1]][rand_pos[0]].type = 'F';
+                        board[rand_pos[1]][rand_pos[0]].id = n_fruits;
+                        fruit.pos[0] = rand_pos[0];
+                        fruit.pos[1] = rand_pos[1];
+                        fruit.type = FRUIT;
+                        fruit.state = CONNECT;
+                        fruits_pos[n_fruits][0] = fruit.pos[0];
+                        fruits_pos[n_fruits][1] = fruit.pos[1];
+                        push_update(fruit, fruit, &mux_sdl);                    
+                        send_update(fruit);
+                        n_fruits++; 
+                        if(n_fruits == (MAX_CLIENT - 1)*2){
+                            n_fruits = 0;
+                            players_disconnected = 0;        //if max number of fruits is reached reset the ids of fruits array
+                        }
+                        occupied_places++;
+                    }                    
+                }    
             }
             n_players_aux = n_players;
         }
@@ -750,7 +768,7 @@ void *inactivity_timer(void *arg){
                 }
             }
         }
-        usleep(500000);
+        usleep(100000);
     }
 }
 
@@ -762,4 +780,17 @@ int get_id_if_full(){
         }
     }
     return(0);
+}
+
+void send_scoreboard(int sign){
+    int previous_state = all_pac[0].state;
+    pthread_mutex_lock(&mux_interactions);
+    all_pac[0].state = SCOREBOARD;
+    send_update(all_pac[0]);
+    all_pac[0].state = previous_state;
+    for(int i = 0; i < MAX_CLIENT; i++){
+        send_update(all_pac[i]);
+    }
+    pthread_mutex_unlock(&mux_interactions);
+    alarm(SCORE_TIME);
 }

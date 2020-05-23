@@ -19,9 +19,10 @@
 #define CHANGE -6
 #define JUST_UPDATE_VAR -7
 #define ERASE_FRUIT -8
-#define IDLE -9
+#define SCOREBOARD -9
 #define SPEED 000000000   //minimum nanoseconds allowed between moves
 #define INACTIVITY 10
+#define SCORE_TIME 10
 #define WRITE 1
 #define READ 0
 
@@ -31,6 +32,7 @@ typedef struct char_data{   //character data
     int type;               //pacman or monster
     int id;                 //id given by server
     int state;              //not connected, connected, disconected
+    int eaten_things;       //counter of eaten things
 } char_data;
 
 typedef struct board_struct{
@@ -100,6 +102,8 @@ void inactivity_jump(char_data *character);
 void *inactivity_timer(void *arg);
 //if array of max clients id reaches max, it will return an id of a client that disconnected
 int get_id_if_full();
+//sends the scoreboard to the player
+void send_scoreboard(int sign);
 
 
 
@@ -113,3 +117,5 @@ void *update_thread(void *arg);
 void server_data(int sock_fd, char *argv[]);
 //paints the bricks and the players already playing
 void initial_paint();
+//prints the scoreboard;
+void print_scoreboard();

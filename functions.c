@@ -29,6 +29,7 @@ void init_character(char_data *character, int type, int id, int state, int r, in
     character->id = id;
     character->type = type;    
     character->state = state;
+    character->eaten_things = 0;
 }
 
 void push_update(char_data update, char_data previous, pthread_mutex_t *mux_sdl){
