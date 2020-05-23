@@ -19,8 +19,9 @@
 #define CHANGE -6
 #define JUST_UPDATE_VAR -7
 #define ERASE_FRUIT -8
+#define IDLE -9
 #define SPEED 000000000   //minimum nanoseconds allowed between moves
-#define INACTIVITY 1
+#define INACTIVITY 10
 #define WRITE 1
 #define READ 0
 
@@ -82,8 +83,6 @@ int over_speed(struct timespec time_of_play, struct timespec *char_play);
 //thread for pacman and monster movements
 void *pac_thread(void *);
 void *monster_thread(void *);
-void inactivity_jump(char_data character);
-void reset_alarm(int sign);
 //all the functions each move has to go trough
 void new_move(char_data character[MAX_CLIENT], char_data update, struct timespec time_of_new_play, struct timespec *time_of_char_play);
 //creates a random starting postition that's not occupied by another character
@@ -96,6 +95,12 @@ void clear_fruits(char_data *update);
 void eat_fruit(int id);
 //gets a char with the type of character
 char get_char_type(char_data character);
+//functions that implement inactivity jump
+void inactivity_jump(char_data *character);
+void *inactivity_timer(void *arg);
+//if array of max clients id reaches max, it will return an id of a client that disconnected
+int get_id_if_full();
+
 
 
 /*___________________________________Player Specific Funtions_______________________________________________*/

@@ -23,12 +23,14 @@ board_struct **board;        //matrix with positions occupied by pacmans, monste
 int client_sockets[MAX_CLIENT][2];     //socket for every client; [0] for socket, [1] for client it corresponds
 char_data all_pac[MAX_CLIENT];
 char_data all_monster[MAX_CLIENT];
-char_data update;
+//char_data update;
 int occupied_places;
 pthread_mutex_t mux_interactions;
 pthread_mutex_t mux_sdl;
-int new_pac_move_pipe[2];
-int new_monster_move_pipe[2];
+struct timespec time_of_pac_play[MAX_CLIENT];
+struct timespec time_of_monster_play[MAX_CLIENT];
+int new_pac_move_pipe[MAX_CLIENT][2];
+int new_monster_move_pipe[MAX_CLIENT][2];
 int n_players;
 int inactive;
 int fruit_pipe[2];
@@ -36,6 +38,8 @@ int fruits_pos[(MAX_CLIENT-1)*2][2];
 
 int main(){
     pthread_t connect_thread;
+    pthread_t fruits_thread_id;
+    pthread_t inactivity_thread_id;
     srand(time(NULL));
     int done = 0;
     SDL_Event event;
@@ -45,11 +49,16 @@ int main(){
     for(int i = 0; i < MAX_CLIENT; i++){
         client_sockets[i][1] = DISCONNECT;
     }    
+    if(pipe(fruit_pipe) != 0){
+        exit(-1);
+    }
 
     read_file();
     pthread_mutex_init(&mux_interactions, NULL);
     pthread_mutex_init(&mux_sdl, NULL);
     pthread_create(&connect_thread, NULL, connect_client, NULL);
+    pthread_create(&fruits_thread_id, NULL, fruits_thread, NULL);
+    pthread_create(&inactivity_thread_id, NULL, inactivity_timer, NULL);
 
     for(int i = 0; i < MAX_CLIENT; i++){
         init_character(&all_pac[i], PACMAN, i, NOT_CONNECT, 0, 0, 0);
@@ -132,7 +141,6 @@ void *connect_client(void *arg){
     int server_socket_fd;
     int client_id = 0;
     pthread_t client_thread_id;
-    pthread_t fruits_thread_id;
     struct sockaddr_in server_addr;
     struct sockaddr_in client_addr[MAX_CLIENT];
     server_addr.sin_family = AF_INET;
@@ -141,13 +149,6 @@ void *connect_client(void *arg){
 
     socklen_t len_server_addr = sizeof(server_addr); 
     socklen_t len_client_addr = sizeof(client_addr); 
-
-    if(pipe(fruit_pipe) != 0){
-        exit(-1);
-    }
-
-    pthread_create(&fruits_thread_id, NULL, fruits_thread, all_pac);
-
 
     server_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if(server_socket_fd == -1){
@@ -178,7 +179,12 @@ void *connect_client(void *arg){
         client_sockets[client_id][1] = client_id;                
        // printf("%ld\n", write(fruit_pipe[1], &client_id, sizeof(int)));
         pthread_create(&client_thread_id, NULL, client, (void *)client_sockets[client_id]);
-        client_id ++;
+        if(client_id == MAX_CLIENT){
+            client_id = get_id_if_full();
+        }
+        else{
+            client_id ++;
+        }
     }
     pthread_exit(NULL);
 }
@@ -192,35 +198,26 @@ void *client(void *arg){
     char_data update;
     char_data previous;
     struct timespec time_of_new_play;
-    struct sigaction new;
-    new.sa_handler = reset_alarm;
-    sigemptyset(&new.sa_mask);
-    new.sa_flags = 0;
-    sigaction(SIGALRM, &new, NULL);
-    reset_alarm(0);
-    inactive = 0;
 
     printf("New client thread created\n");
 
-    if(pipe(new_pac_move_pipe) != 0){
+    if(pipe(new_pac_move_pipe[sock[1]]) != 0){
         exit(-1);
     }
-    if(pipe(new_monster_move_pipe) != 0){
+    if(pipe(new_monster_move_pipe[sock[1]]) != 0){
         exit(-1);
     }
-
-    player_data(sock, previous);
 
     pthread_create(&pac_thread_id, NULL, pac_thread, NULL);
+    write(new_pac_move_pipe[sock[1]][WRITE], &sock[1], sizeof(int));
     pthread_create(&monster_thread_id, NULL, monster_thread, NULL);
+    write(new_monster_move_pipe[sock[1]][WRITE], &sock[1], sizeof(int));
+
+    player_data(sock, previous);
         
     while(1){    
-       // alarm(5);
-       // signal(SIGALRM ,inactivity_jump);
         ret = recv(sock[0], &update, sizeof(char_data), 0);
-       /* inactive = 0;
-        alarm(INACTIVITY); */                 //reset counter every new move
-        clock_gettime(CLOCK_MONOTONIC, &time_of_new_play); 
+        clock_gettime(CLOCK_MONOTONIC, &time_of_new_play);              //reset counter every new move
         if(ret == 0){              
             disconnect_player(update.id);
             printf("Client disconnected \n");
@@ -230,23 +227,23 @@ void *client(void *arg){
             break;
         }
         if(update.type == PACMAN || update.type >= POWER_PACMAN){
-            write(new_pac_move_pipe[WRITE], &update, sizeof(char_data));   
-            write(new_pac_move_pipe[WRITE], &time_of_new_play, sizeof(struct timespec));                       
+            write(new_pac_move_pipe[sock[1]][WRITE], &update, sizeof(char_data));   
+            write(new_pac_move_pipe[sock[1]][WRITE], &time_of_new_play, sizeof(struct timespec));                       
         }
         else if(update.type == MONSTER){
-            write(new_monster_move_pipe[WRITE], &update, sizeof(char_data));   
-            write(new_monster_move_pipe[WRITE], &time_of_new_play, sizeof(struct timespec));
+            write(new_monster_move_pipe[sock[1]][WRITE], &update, sizeof(char_data));   
+            write(new_monster_move_pipe[sock[1]][WRITE], &time_of_new_play, sizeof(struct timespec));
         }               
         
         
    
-      /*  for(int i = 0; i < dimensions[1]; i++){
+        /*for(int i = 0; i < dimensions[1]; i++){
             for(int j = 0; j < dimensions[0]; j++){
                 printf("%c.%d", board[i][j].type, board[i][j].id);
             }
             printf("\n");
-        }*/          
-       //printf("x%d y%d \tid %d type %d\n", update.pos[0], update.pos[1], update.id, update.type);
+        }*/         
+       printf("x%d y%d \tid %d type %d\n", update.pos[0], update.pos[1], update.id, update.type);
     }
     pthread_exit(NULL);
 }
@@ -260,7 +257,7 @@ int valid_movement(char_data update, char_data character[MAX_CLIENT]){
         || (update.pos[1] == character[update.id].pos[1] + 1 && update.pos[0] == character[update.id].pos[0])
         || (update.pos[1] == character[update.id].pos[1] - 1 && update.pos[0] == character[update.id].pos[0])){   //if it's any of the adjacent places
             ret = 1; 
-            }
+        }
     }
     return ret;
 }
@@ -410,7 +407,6 @@ void bounce_on_brick(int id, char_data character[MAX_CLIENT], char_data previous
 
 int character_interactions(int id, char_data character[MAX_CLIENT], char_data previous){
     int occupant_id;
-    int fruit_eaten = 0;   
     if(character[id].type == PACMAN || character[id].type >= POWER_PACMAN){
         if(board[character[id].pos[1]][character[id].pos[0]].id == id && board[character[id].pos[1]][character[id].pos[0]].type != 'F'){    //if it's the monster of the same player
           //  printf("position occupied by your monster\n");
@@ -556,34 +552,10 @@ int over_speed(struct timespec time_of_play, struct timespec *char_play){
     }       
 }
 
-void inactivity_jump(char_data character){
-    int rand_pos[2];
-    char_data previous = character;
-    //printf("too long inactive\n");
-    create_rand_position(rand_pos);
-    character.pos[0] = rand_pos[0];
-    character.pos[1] = rand_pos[1];        
-    push_update(character, previous, &mux_sdl);
-    send_update(character);
-}
-
-void reset_alarm(int sign){
-    inactive = 1;
-    alarm(INACTIVITY);
-}
-
-void *inactivity_thread(void *arg){
-    int *id = arg;
-    while(1){
-        if(inactive){
-            inactivity_jump;
-            inactive = 0;
-        }
-    }
-}
 void new_move(char_data character[MAX_CLIENT], char_data update, struct timespec time_of_new_play, struct timespec *time_of_char_play){
     char type;
     char_data previous = character[update.id];                
+
     if(valid_movement(update, character)){
         if(over_speed(time_of_new_play, time_of_char_play) == 0){
             if(bounce_on_walls(update, character) == 0){          //if it bounces on a wall it won't bounce on a brick
@@ -624,7 +596,6 @@ void *fruits_thread(void *arg){
     char_data fruit; 
     init_character(&fruit, FRUIT, 0, 0, 0, 0, 0);
     while(1){
-        printf("fruit thread\n");
         if(n_players > n_players_aux){      //new player connected
             if(n_players > 1){       
                 for(int i = 0; i < 2; i++){             //(n_players - 1)*2 means that for every new player, there's two more fruits
@@ -645,9 +616,6 @@ void *fruits_thread(void *arg){
                         players_disconnected = 0;        //if max number of fruits is reached reset the ids of fruits array
                     }
                 }                    
-            }
-            for(int i = 0; i < (MAX_CLIENT - 1)*2; i++){
-                printf("fruits %d %d\n", fruits_pos[i][0], fruits_pos[i][1]);
             }
             n_players_aux = n_players;
         }
@@ -673,26 +641,44 @@ void *fruits_thread(void *arg){
 }
 
 void *pac_thread(void *arg){
+    int id;
+    int pipe_id;
     char_data update;
     struct timespec time_of_new_play;
-    struct timespec time_of_pac_play;
-    time_of_pac_play.tv_sec = 0;
+    if(n_players == MAX_CLIENT){
+        pipe_id = get_id_if_full();
+    }
+    else{
+        pipe_id = n_players;
+    }
+    read(new_pac_move_pipe[pipe_id][READ], &id, sizeof(int));
+    
+    clock_gettime(CLOCK_MONOTONIC, &time_of_pac_play[id]);   //to get the time the client connects
     while(1){
-        read(new_pac_move_pipe[READ], &update, sizeof(char_data));
-        read(new_pac_move_pipe[READ], &time_of_new_play, sizeof(struct timespec));    
-        new_move(all_pac, update, time_of_new_play, &time_of_pac_play);            
+        read(new_pac_move_pipe[id][READ], &update, sizeof(char_data));
+        read(new_pac_move_pipe[id][READ], &time_of_new_play, sizeof(struct timespec));    
+        new_move(all_pac, update, time_of_new_play, &time_of_pac_play[id]);
     }
 }
 
 void *monster_thread(void *arg){
+    int id;
     char_data update;
+    int pipe_id;
     struct timespec time_of_new_play;
-    struct timespec time_of_monster_play;
-    time_of_monster_play.tv_sec = 0;
+    if(n_players == MAX_CLIENT){
+        pipe_id = get_id_if_full();
+    }
+    else{
+        pipe_id = n_players;
+    }
+    read(new_monster_move_pipe[pipe_id][READ], &id, sizeof(int));
+    clock_gettime(CLOCK_MONOTONIC, &time_of_monster_play[id]);
     while(1){
-        read(new_monster_move_pipe[READ], &update, sizeof(char_data)); 
-        read(new_monster_move_pipe[READ], &time_of_new_play, sizeof(struct timespec));       
-        new_move(all_monster, update, time_of_new_play, &time_of_monster_play);            
+        printf("id on thread %d\n", id);
+        read(new_monster_move_pipe[id][READ], &update, sizeof(char_data)); 
+        read(new_monster_move_pipe[id][READ], &time_of_new_play, sizeof(struct timespec));       
+        new_move(all_monster, update, time_of_new_play, &time_of_monster_play[id]);
     }
 }
 
@@ -724,4 +710,56 @@ char get_char_type(char_data character){
         return('F');
     }
     return(' ');
+}
+
+void inactivity_jump(char_data *character){
+    int rand_pos[2];
+    char type;
+    char_data previous = *character;
+    printf("previous %d %d %d %d\n", previous.pos[0], previous.pos[1], previous.id, previous.type);
+    printf("too long inactive\n");
+    create_rand_position(rand_pos);
+    character->pos[0] = rand_pos[0];
+    character->pos[1] = rand_pos[1];
+    board[previous.pos[1]][previous.pos[0]].type = ' ';
+    board[previous.pos[1]][previous.pos[0]].id = NOT_CONNECT;
+    type = get_char_type(*character);
+    board[character->pos[1]][character->pos[0]].type = type;
+    board[character->pos[1]][character->pos[0]].id = character->id; 
+    character->state = CONNECT;          
+    push_update(*character, previous, &mux_sdl);
+    send_update(*character);
+}
+
+void *inactivity_timer(void *arg){
+    struct timespec current_time;
+    while(1){
+        if(n_players > 0){
+            clock_gettime(CLOCK_MONOTONIC, &current_time);
+            for(int i = 0; i < MAX_CLIENT; i++){
+                if(all_pac[i].state != NOT_CONNECT && all_pac[i].state != DISCONNECT){
+                    printf("current%ld\t monster(%d) play %ld\n", current_time.tv_sec, i, time_of_monster_play[i].tv_sec);
+                    if(current_time.tv_sec - time_of_pac_play[i].tv_sec == INACTIVITY){
+                        inactivity_jump(&all_pac[i]);
+                        time_of_pac_play[i] = current_time;
+                    }
+                    if(current_time.tv_sec - time_of_monster_play[i].tv_sec == INACTIVITY){
+                        inactivity_jump(&all_monster[i]);
+                        time_of_monster_play[i] = current_time;
+                    }
+                }
+            }
+        }
+        usleep(500000);
+    }
+}
+
+
+int get_id_if_full(){
+    for(int i; i < MAX_CLIENT; i++){
+        if(all_pac[i].state == DISCONNECT){
+            return i;
+        }
+    }
+    return(0);
 }
