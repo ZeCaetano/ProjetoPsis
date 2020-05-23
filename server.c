@@ -55,6 +55,10 @@ int main(){
         exit(-1);
     }
 
+    for(int i = 0; i < MAX_CLIENT; i++){
+        init_character(&all_pac[i], PACMAN, i, NOT_CONNECT, 0, 0, 0);
+        init_character(&all_monster[i], MONSTER, i, NOT_CONNECT, 0, 0, 0);
+    }
     read_file();
     pthread_mutex_init(&mux_interactions, NULL);
     pthread_mutex_init(&mux_sdl, NULL);
@@ -62,10 +66,6 @@ int main(){
     pthread_create(&fruits_thread_id, NULL, fruits_thread, NULL);
     pthread_create(&inactivity_thread_id, NULL, inactivity_timer, NULL);
 
-    for(int i = 0; i < MAX_CLIENT; i++){
-        init_character(&all_pac[i], PACMAN, i, NOT_CONNECT, 0, 0, 0);
-        init_character(&all_monster[i], MONSTER, i, NOT_CONNECT, 0, 0, 0);
-    }
 
     alarm(SCORE_TIME);
     signal(SIGALRM, send_scoreboard);
