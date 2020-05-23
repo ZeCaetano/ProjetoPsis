@@ -91,7 +91,6 @@ int main(){
             if(event.type == Event_Update){
                 char_data *data = event.user.data1;
                 char_data *previous = event.user.data2;
-               // printf("going to paint x%d y%d \tid %d type %d state %d\n", data->pos[0], data->pos[1], data->id, data->type, data->state);
                 paint_update(data, previous, all_pac, all_monster);                        
                 free(previous);                 
                 free(data);   
@@ -120,7 +119,6 @@ void read_file(){
     }
 
     fscanf(fp, "%d %d", &dimensions[0], &dimensions[1]);    //reads the dimensions from the file
-   // printf("%d %d\n", dimensions[0], dimensions[1]);
     c = fgetc(fp);      //to read the \n on the first line
     board = checked_malloc(sizeof(board_struct*) * dimensions[1]);             //rows
     for(int i = 0; i < dimensions[1]; i++){
@@ -180,7 +178,6 @@ void *connect_client(void *arg){
         }
         printf("Connection made with client\n");
         client_sockets[client_id][1] = client_id;                
-       // printf("%ld\n", write(fruit_pipe[1], &client_id, sizeof(int)));
         pthread_create(&client_thread_id, NULL, client, (void *)client_sockets[client_id]);
         if(client_id == MAX_CLIENT){
             client_id = get_id_if_full();
@@ -246,7 +243,7 @@ void *client(void *arg){
             }
             printf("\n");
         }*/         
-       printf("x%d y%d \tid %d type %d\n", update.pos[0], update.pos[1], update.id, update.type);
+       //printf("x%d y%d \tid %d type %d\n", update.pos[0], update.pos[1], update.id, update.type);
     }
     pthread_exit(NULL);
 }
@@ -522,7 +519,6 @@ void eat(char_data *eaten, char eaten_type, int moving_type){
     eaten->pos[0] = rand_pos[0];
     eaten->pos[1] = rand_pos[1];    
     if(eaten->type != moving_type){   //if who is eaten is not the one moving
-    //    printf("the one eaten was not moving\n");
         board[eaten->pos[1]][eaten->pos[0]].type = eaten_type;
         board[eaten->pos[1]][eaten->pos[0]].id = eaten->id;
         eaten->state = CHANGE;
@@ -697,7 +693,6 @@ void *monster_thread(void *arg){
     read(new_monster_move_pipe[pipe_id][READ], &id, sizeof(int));
     clock_gettime(CLOCK_MONOTONIC, &time_of_monster_play[id]);
     while(1){
-        printf("id on thread %d\n", id);
         read(new_monster_move_pipe[id][READ], &update, sizeof(char_data)); 
         read(new_monster_move_pipe[id][READ], &time_of_new_play, sizeof(struct timespec));       
         new_move(all_monster, update, time_of_new_play, &time_of_monster_play[id]);
@@ -738,7 +733,7 @@ void inactivity_jump(char_data *character){
     int rand_pos[2];
     char type;
     char_data previous = *character;
-    printf("previous %d %d %d %d\n", previous.pos[0], previous.pos[1], previous.id, previous.type);
+    //printf("previous %d %d %d %d\n", previous.pos[0], previous.pos[1], previous.id, previous.type);
     printf("too long inactive\n");
     create_rand_position(rand_pos);
     character->pos[0] = rand_pos[0];
@@ -760,7 +755,7 @@ void *inactivity_timer(void *arg){
             clock_gettime(CLOCK_MONOTONIC, &current_time);
             for(int i = 0; i < MAX_CLIENT; i++){
                 if(all_pac[i].state != NOT_CONNECT && all_pac[i].state != DISCONNECT){
-                    printf("current%ld\t monster(%d) play %ld\n", current_time.tv_sec, i, time_of_monster_play[i].tv_sec);
+                    //printf("current%ld\t monster(%d) play %ld\n", current_time.tv_sec, i, time_of_monster_play[i].tv_sec);
                     if(current_time.tv_sec - time_of_pac_play[i].tv_sec == INACTIVITY){
                         inactivity_jump(&all_pac[i]);
                         time_of_pac_play[i] = current_time;

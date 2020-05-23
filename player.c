@@ -203,7 +203,7 @@ void server_data(int sock_fd, char *argv[]){
     }
     recv(sock_fd, dimensions, (sizeof(int) * 2), 0);
     send(sock_fd, color, (sizeof(int) * 3), 0);                  //sends the color to server
-    printf("dimensions: %d %d\n", dimensions[0], dimensions[1]);
+   // printf("dimensions: %d %d\n", dimensions[0], dimensions[1]);
     board = checked_malloc(sizeof(board_struct*) * dimensions[1]);             //rows
     for(int i = 0; i < dimensions[1]; i++){
         board[i] = checked_malloc(sizeof(board_struct) * dimensions[0]);      //columns
@@ -216,12 +216,10 @@ void server_data(int sock_fd, char *argv[]){
         printf("\n");
     }
 
-    printf("local id %d\n", local_id);
+   // printf("local id %d\n", local_id);
 
     recv(sock_fd, all_pac, (sizeof(char_data) * MAX_CLIENT), 0);
     recv(sock_fd, all_monster, (sizeof(char_data) * MAX_CLIENT), 0);
-
-    printf("end of server data\n");
 }
 
 void initial_paint(){
