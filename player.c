@@ -187,7 +187,7 @@ void *update_thread(void *arg){
             push_update(update, previous, &mux_sdl);
             
         } 
-        printf("x%d y%d \tid %d type %d\n", update.pos[0], update.pos[1], update.id, update.type);             
+        printf("x%d y%d \tid %d type %d\tstate %d\n", update.pos[0], update.pos[1], update.id, update.type, update.state);             
     }
 }   
 
