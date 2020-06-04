@@ -9,7 +9,7 @@ ALLFLAGS = -Wall -lSDL2 -lSDL2_image -lpthread
 
 #other C files to linkage
 SDL = UI_library
-GLOBAL = functions
+GLOBAL = general_functions
 all: clean player server
 
 SERVER = server

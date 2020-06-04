@@ -20,9 +20,9 @@
 #define JUST_UPDATE_VAR -7
 #define ERASE_FRUIT -8
 #define SCOREBOARD -9
-#define SPEED 000000000   //minimum nanoseconds allowed between moves
-#define INACTIVITY 10
-#define SCORE_TIME 10
+#define SPEED 500000000   //minimum nanoseconds allowed between moves
+#define INACTIVITY 30
+#define SCORE_TIME 60
 #define WRITE 1
 #define READ 0
 

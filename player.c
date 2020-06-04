@@ -53,12 +53,6 @@ int main(int argc, char *argv[]){
     initial_paint();
 
     while(!done){
-     /*   local_pac.pos[0] = rand()%dimensions[0];
-        local_pac.pos[1] = rand()%dimensions[1];
-        local_monster.pos[0] = rand()%dimensions[0];
-        local_monster.pos[1] = rand()%dimensions[1];
-        send(sock_fd, &local_pac, sizeof(char_data), 0);
-        send(sock_fd, &local_monster, sizeof(char_data), 0);*/
         if(SDL_WaitEvent(&event)){
             if(event.type == SDL_QUIT){
                 done = SDL_TRUE;
@@ -70,7 +64,7 @@ int main(int argc, char *argv[]){
                 if(data->state == ENDGAME){
                     free(previous);
                     free(data);
-                    printf("Kicked by admin\n");
+                    printf("Server disconnected: game ending\n");
                     done = SDL_TRUE;
                 }
                 free(previous);
@@ -138,7 +132,6 @@ void *update_thread(void *arg){
     int *sock_fd = arg;    
     char_data update;    
     char_data previous;
-    printf("update_thread\n");
     while(1){
         if(recv(*sock_fd, &update, sizeof(char_data), 0) == 0){
             update.state = ENDGAME;
@@ -187,7 +180,6 @@ void *update_thread(void *arg){
             push_update(update, previous, &mux_sdl);
             
         } 
-        printf("x%d y%d \tid %d type %d\tstate %d\n", update.pos[0], update.pos[1], update.id, update.type, update.state);             
     }
 }   
 
@@ -203,20 +195,11 @@ void server_data(int sock_fd, char *argv[]){
     }
     recv(sock_fd, dimensions, (sizeof(int) * 2), 0);
     send(sock_fd, color, (sizeof(int) * 3), 0);                  //sends the color to server
-   // printf("dimensions: %d %d\n", dimensions[0], dimensions[1]);
     board = checked_malloc(sizeof(board_struct*) * dimensions[1]);             //rows
     for(int i = 0; i < dimensions[1]; i++){
         board[i] = checked_malloc(sizeof(board_struct) * dimensions[0]);      //columns
         recv(sock_fd, board[i], (sizeof(board_struct)*dimensions[0]), 0);
     }    
-    for(int i = 0; i < dimensions[1]; i++){
-        for(int j = 0; j < dimensions[0]; j++){
-            printf("%c", board[i][j].type);
-        }
-        printf("\n");
-    }
-
-   // printf("local id %d\n", local_id);
 
     recv(sock_fd, all_pac, (sizeof(char_data) * MAX_CLIENT), 0);
     recv(sock_fd, all_monster, (sizeof(char_data) * MAX_CLIENT), 0);
@@ -248,5 +231,5 @@ void print_scoreboard(){
             printf("Player %d score: %d\n", i, score[i].eaten_things);
         }
     }
-    printf("\n\n\n\n");
+    printf("\n\n");
 }

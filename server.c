@@ -283,6 +283,7 @@ void disconnect_player(int id){
     write(fruit_pipe[WRITE], &fruit, sizeof(int));
     client_sockets[id][1] = DISCONNECT;
     if(current_players == 1){
+        printf("only one player playing\n");
         for(int i = 0; i < MAX_CLIENT; i++){
             if(all_pac[i].state ==  CONNECT){
                 all_pac[i].eaten_things = 0;
@@ -611,7 +612,7 @@ void *fruits_thread(void *arg){
     char_data fruit; 
     init_character(&fruit, FRUIT, 0, 0, 0, 0, 0);
     while(1){
-        if(current_players> n_players_aux){      //new player connected
+        if(current_players > n_players_aux){      //new player connected
             if(current_players> 1){   
                 for(int i = 0; i < 2; i++){             //(current_players- 1)*2 means that for every new player, there's two more fruits
                     if(occupied_places < dimensions[0]*dimensions[1]){
